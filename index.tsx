@@ -8,7 +8,14 @@ bootstrapApplication(AppComponent, {
   providers: [
     provideZonelessChangeDetection(),
     { provide: LocationStrategy, useClass: HashLocationStrategy },
-    { provide: APP_BASE_HREF, useValue: '.' }
+    { 
+      provide: APP_BASE_HREF, 
+      useFactory: () => {
+        // Dynamically calculate base based on current location to support subdirectories (like GitHub Pages)
+        const path = window.location.pathname;
+        return path.endsWith('/') ? path : path + '/';
+      }
+    }
   ]
 }).catch(err => console.error(err));
 
