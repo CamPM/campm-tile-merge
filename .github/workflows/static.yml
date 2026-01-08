@@ -25,7 +25,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+                - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          # Cache removed to avoid the lock file error
+
 
       - name: Install dependencies
         run: npm install
