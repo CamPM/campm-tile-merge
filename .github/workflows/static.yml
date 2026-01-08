@@ -23,7 +23,8 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm install  # This creates the missing lock file on the fly
+        run: npm install --legacy-peer-deps
+
 
       - name: Build project
         run: npm run build
