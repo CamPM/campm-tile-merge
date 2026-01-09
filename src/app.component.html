@@ -54,8 +54,11 @@
 
   <!-- Board Area: Flexible space using aspect-ratio containment -->
   <div class="relative z-10 flex-1 w-full min-h-0 flex items-center justify-center my-2 p-1">
-     <!-- Wrapper: Strictly square, filling available space but not overflowing -->
-     <div class="aspect-square w-auto h-auto max-h-full max-w-full m-auto" 
+     <!-- Wrapper: Strictly square, filling available space but not overflowing 
+          max-w-[96%] ensures side gaps even on narrow screens
+          m-auto centers it
+     -->
+     <div class="aspect-square w-auto h-auto max-h-full max-w-[96%] m-auto" 
           style="width: 100%; height: auto; max-width: 500px;"> 
         <app-board [bombHover]="bombHoverPos()"></app-board>
      </div>
@@ -174,7 +177,7 @@
         </section>
         
         <div class="mt-4 pt-4 border-t border-white/10 text-center text-xs text-white/50">
-          Tile Merge v0.08
+          Tile Merge v0.09
         </div>
       </div>
     </app-modal>
