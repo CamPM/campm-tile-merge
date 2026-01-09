@@ -11,13 +11,14 @@ export interface Shape {
   id: number;
   matrix: number[][];
   color: string;
+  area: number; // Added for backfill calculations
 }
 
 export interface ColorTheme {
   id: string;
   name: string;
   colors: string[];
-  bgStyle: string; // Tailwind classes for background
+  bgStyle: string;
   isDark: boolean;
   cost: number;
 }
@@ -25,7 +26,7 @@ export interface ColorTheme {
 export interface BlockSkin {
   id: string;
   name: string;
-  cellStyle: string; // Tailwind classes for cells
+  cellStyle: string;
   cost: number;
 }
 
@@ -61,7 +62,7 @@ export class GameService {
   movesSinceLastClear = signal(0);
 
   // --- Preview & Drag ---
-  previewCells = signal<Map<string, string>>(new Map()); // Key "r,c" -> color
+  previewCells = signal<Map<string, string>>(new Map());
   availableShapes = signal<Shape[]>([]);
   
   draggedShape = signal<Shape | null>(null);
@@ -75,8 +76,6 @@ export class GameService {
   themeCycleTrigger = signal(false);
 
   // --- Store Data ---
-  
-  // 1. Grids
   gridOptions: GridOption[] = [
     { size: 6, name: '6x6 Small', cost: 250 },
     { size: 8, name: '8x8 Classic', cost: 0 },
@@ -84,7 +83,6 @@ export class GameService {
     { size: 12, name: '12x12 Expert', cost: 2000 },
   ];
 
-  // 2. Sound Packs
   soundPacks: SoundPack[] = [
     { id: 'classic', name: 'Classic Chill', description: 'Relaxing lo-fi beats & soft thuds.', cost: 0 },
     { id: 'wood', name: 'Woodblock', description: 'Organic, snappy wooden textures.', cost: 750 },
@@ -96,19 +94,18 @@ export class GameService {
     { id: 'scifi', name: 'Sci-Fi', description: 'Futuristic zaps and lasers.', cost: 750 },
   ];
 
-  // 3. Block Skins (Textures)
   blockSkins: BlockSkin[] = [
     { id: 'classic', name: 'Classic', cellStyle: 'rounded-md border border-white/20 shadow-sm', cost: 0 },
     { id: 'tetris', name: 'Tetris', cellStyle: 'rounded-none border-t-4 border-l-4 border-white/40 border-b-4 border-r-4 border-black/20', cost: 1500 },
     { id: 'toy', name: 'Toy Bricks', cellStyle: 'rounded-[2px] shadow-md border-b-2 border-black/10', cost: 1500 },
-    { id: 'voxel', name: 'Block Game', cellStyle: 'rounded-none border-2 border-white/10 ring-2 ring-black/10 ring-inset', cost: 1500 },
+    { id: 'voxel', name: 'Mine Blocks', cellStyle: 'rounded-none', cost: 1500 }, // Style handled in board component for complexity
   ];
 
-  // 4. Themes (Colors)
-  // Prices Rounded to Nice Numbers
   themes: ColorTheme[] = [
-    { id: 'clean', name: 'Clean White', colors: ['#60a5fa', '#94a3b8', '#3b82f6', '#cbd5e1'], bgStyle: 'bg-white text-slate-800', isDark: false, cost: 0 },
-    { id: 'ocean', name: 'Ocean Breeze', colors: ['#cbd5e1', '#86efac', '#94a3b8', '#4ade80'], bgStyle: 'bg-sky-100 text-slate-900', isDark: false, cost: 0 },
+    // Updated default 1: White BG, Darker Grey & Sky Blue bricks for better visibility
+    { id: 'clean', name: 'Clean White', colors: ['#64748b', '#0ea5e9', '#475569', '#0284c7'], bgStyle: 'bg-white text-slate-800', isDark: false, cost: 0 },
+    // Updated default 2: Sky Blue BG, Darker Grey & Green bricks
+    { id: 'ocean', name: 'Ocean Breeze', colors: ['#64748b', '#22c55e', '#475569', '#16a34a'], bgStyle: 'bg-sky-100 text-slate-900', isDark: false, cost: 0 },
     { id: 'dark', name: 'Dark Mode', colors: ['#ef4444', '#3b82f6', '#22c55e', '#eab308'], bgStyle: 'bg-slate-900 text-white', isDark: true, cost: 500 },
     { id: 'forest', name: 'Forest', colors: ['#a7f3d0', '#6ee7b7', '#34d399', '#10b981'], bgStyle: 'bg-emerald-900 text-emerald-50', isDark: true, cost: 1000 },
     { id: 'sunset', name: 'Sunset', colors: ['#fdba74', '#fb923c', '#f97316', '#ea580c'], bgStyle: 'bg-orange-950 text-orange-50', isDark: true, cost: 1500 },
@@ -144,42 +141,28 @@ export class GameService {
     this.loadState();
     this.initBoard();
     this.refillShapes();
-    
-    // Sync sound service
     this.sound.setPack(this.currentSoundPackId());
   }
 
   private loadState() {
     const savedBest = localStorage.getItem('blockBlastBest');
     if (savedBest) this.highScore.set(parseInt(savedBest, 10));
-    
     const savedCurrency = localStorage.getItem('blockBlastCurrency');
     if (savedCurrency) this.currency.set(parseInt(savedCurrency, 10));
-
-    // Load Ownership
     const savedThemes = localStorage.getItem('blockBlastOwnedThemes');
     if (savedThemes) this.ownedThemes.set(JSON.parse(savedThemes));
-
     const savedSkins = localStorage.getItem('blockBlastOwnedSkins');
     if (savedSkins) this.ownedSkins.set(JSON.parse(savedSkins));
-    
     const savedGrids = localStorage.getItem('blockBlastOwnedGrids');
     if (savedGrids) this.ownedGrids.set(JSON.parse(savedGrids));
-
     const savedSounds = localStorage.getItem('blockBlastOwnedSounds');
     if (savedSounds) this.ownedSoundPacks.set(JSON.parse(savedSounds));
-
-    // Load Selections
     const savedThemeId = localStorage.getItem('blockBlastThemeId');
     if (savedThemeId && this.ownedThemes().includes(savedThemeId)) this.currentThemeId.set(savedThemeId);
-
     const savedSkinId = localStorage.getItem('blockBlastSkinId');
     if (savedSkinId && this.ownedSkins().includes(savedSkinId)) this.currentSkinId.set(savedSkinId);
-
     const savedSoundId = localStorage.getItem('blockBlastSoundId');
     if (savedSoundId && this.ownedSoundPacks().includes(savedSoundId)) this.currentSoundPackId.set(savedSoundId as SoundPackId);
-    
-    // Grid Size
     const savedGrid = localStorage.getItem('blockBlastGridSize');
     if (savedGrid) {
       const size = parseInt(savedGrid, 10);
@@ -193,7 +176,6 @@ export class GameService {
     this.board.set(newBoard);
   }
 
-  // Set grid size (only if owned logic handled in store)
   setGridSize(size: GridSize) {
     if (!this.ownedGrids().includes(size)) return;
     this.gridSize.set(size);
@@ -204,47 +186,250 @@ export class GameService {
   resetGame() {
     this.initBoard();
     this.score.set(0);
-    this.refillShapes();
+    this.comboMultiplier.set(1);
+    this.movesSinceLastClear.set(0);
     this.gameOver.set(false);
     this.bombMode.set(false);
     this.clearedLines.set([]);
     this.themeCycleTrigger.set(false);
     this.clearPreview();
-    this.comboMultiplier.set(1);
-    this.movesSinceLastClear.set(0);
+    this.refillShapes();
   }
 
-  // --- Shape Generation ---
-  private SHAPE_TEMPLATES = [
-    [[1]], [[1, 1]], [[1], [1]], [[1, 1, 1]], [[1], [1], [1]], 
-    [[1, 1], [1, 1]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], 
-    [[1, 1, 1], [0, 1, 0]], [[1, 1, 1], [1, 0, 0]], [[1, 1, 1], [0, 0, 1]], 
-    [[1, 1, 0], [0, 1, 1]], [[0, 1, 1], [1, 1, 0]], 
-    [[1, 1, 1, 1]], [[1], [1], [1], [1]], [[1, 1, 1], [1, 0, 0], [1, 0, 0]]
+  // --- Advanced Shape Generation ---
+  
+  // Base Pools
+  private POOL_RESCUE = [
+    [[1]], // Dot (1)
+    [[1, 1]], [[1], [1]], // 2-Bars (2)
+    [[1, 1], [1, 0]], [[0, 1], [1, 1]], // Mini Corners (3)
   ];
 
-  refillShapes() {
-    const newShapes: Shape[] = [];
-    const theme = this.currentTheme();
-    for (let i = 0; i < 3; i++) {
-      const template = this.SHAPE_TEMPLATES[Math.floor(Math.random() * this.SHAPE_TEMPLATES.length)];
-      const color = theme.colors[Math.floor(Math.random() * theme.colors.length)];
-      newShapes.push({
-        id: Math.random(),
-        matrix: template,
-        color: color
-      });
-    }
-    this.availableShapes.set(newShapes);
+  private POOL_STANDARD = [
+    [[1, 1, 1]], [[1], [1], [1]], // 3-Bars
+    [[1, 1], [1, 1]], // Square (4)
+    [[1, 1, 1], [0, 1, 0]], [[0, 1, 0], [1, 1, 1]], // T
+    [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[1, 1], [1, 0]], [[1, 1], [0, 1]], // Corners
+    [[1, 1, 1], [1, 0, 0]], [[1, 1, 1], [0, 0, 1]], // L
+    [[1, 1, 0], [0, 1, 1]], [[0, 1, 1], [1, 1, 0]] // Z/S
+  ];
+
+  private POOL_LARGE = [
+    [[1, 1, 1, 1]], [[1], [1], [1], [1]], // 4-Bars
+    [[1, 1, 1], [1, 0, 0], [1, 0, 0]], // Big L (5)
+    [[1, 1, 1], [0, 0, 1], [0, 0, 1]], // Big J
+    [[1, 1, 1], [1, 0, 1]], // U shape (5)
+    [[1, 0, 1], [1, 1, 1]], // U shape inverted
+    [[0, 1, 0], [1, 1, 1], [0, 1, 0]], // Plus (5)
+    [[1, 0, 0], [0, 1, 0], [0, 0, 1]], // Diagonal 3
+    [[0, 0, 1], [0, 1, 0], [1, 0, 0]], // Diagonal 3 reverse
+    [[1, 1, 1], [1, 1, 1]], // 2x3 block (6)
+    // SGR note: 4x4 not added to preserve mobile view, 2x3 is largest area
+  ];
+
+  // Helper to count active cells (Area)
+  private getShapeArea(matrix: number[][]): number {
+    return matrix.reduce((sum, row) => sum + row.reduce((rSum, val) => rSum + val, 0), 0);
   }
 
-  // --- Game Logic ---
-  canPlace(shape: number[][], row: number, col: number): boolean {
+  // Helper: Critical Density Check
+  private getBoardDensity(): number {
     const board = this.board();
     const size = this.gridSize();
-    for (let r = 0; r < shape.length; r++) {
-      for (let c = 0; c < shape[0].length; c++) {
-        if (shape[r][c] === 1) {
+    let filled = 0;
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        if (board[r][c].filled) filled++;
+      }
+    }
+    return filled / (size * size);
+  }
+
+  // ALGORITHM: Adaptive Batch Generation with SGR and Critical Density
+  refillShapes() {
+    const theme = this.currentTheme();
+    const size = this.gridSize();
+    
+    // 1. Analyze Board State
+    const maxContiguous = this.getLargestContiguousEmpty();
+    const density = this.getBoardDensity();
+    
+    // Critical Density Recovery: > 75% filled triggers "Recovery Mode"
+    const isRecoveryMode = density > 0.75;
+    
+    const maxRetries = size <= 6 ? 20 : 5;
+    
+    let bestBatch: Shape[] = [];
+    let isSolvable = false;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const candidates: Shape[] = [];
+      
+      // Slot 1 & 2: Global Pool with SGR and Density logic
+      for (let i = 0; i < 2; i++) {
+        const mat = this.pickMatrixSGR(isRecoveryMode, size);
+        candidates.push(this.createShape(mat, theme));
+      }
+
+      // Slot 3: Backfill Logic
+      // Constraint: Occupy <= 60% of largest sub-region
+      const backfillLimit = Math.max(1, Math.floor(maxContiguous * 0.6));
+      const backfillMat = this.pickBackfillMatrix(backfillLimit);
+      candidates.push(this.createShape(backfillMat, theme));
+
+      // Feasibility Check
+      if (this.canPlaceBatch(candidates)) {
+        bestBatch = candidates;
+        isSolvable = true;
+        break;
+      }
+      
+      if (attempt === 0) bestBatch = candidates;
+    }
+
+    // Adaptive Search Depth / Safety Fallback
+    // In a 6x6 grid, if not solvable, prioritize generating at least one "safety" piece (1x1 or 1x2).
+    if (!isSolvable && (size <= 6 || isRecoveryMode)) {
+       // Force the first shape to be a small rescue shape
+       bestBatch[0] = this.createShape(this.getRandomFrom(this.POOL_RESCUE), theme);
+    }
+
+    this.availableShapes.set(bestBatch);
+  }
+
+  private createShape(matrix: number[][], theme: ColorTheme): Shape {
+    return {
+      id: Math.random(),
+      matrix: matrix,
+      color: theme.colors[Math.floor(Math.random() * theme.colors.length)],
+      area: this.getShapeArea(matrix)
+    };
+  }
+
+  // Logic for Slot 1 & 2 with Shape-to-Grid Ratio (SGR)
+  // Removed Tension Delay: No longer scaling based on performance
+  private pickMatrixSGR(recovery: boolean, size: GridSize): number[][] {
+    const rand = Math.random();
+    
+    // Critical Density Check: If Board is 75% full, panic and give small pieces
+    if (recovery) {
+       // 80% Rescue, 20% Standard
+       return rand < 0.8 ? this.getRandomFrom(this.POOL_RESCUE) : this.getRandomFrom(this.POOL_STANDARD);
+    }
+
+    // SGR: Adjust weights based on Grid Size N
+    let pRescue = 0.15;
+    let pStandard = 0.50;
+    // pLarge is remainder
+    
+    if (size <= 6) {
+      // Small Grid: Reduce large block weight by ~50%
+      // Base Large was ~35%, now ~15%. Redistribute to Standard/Rescue
+      pRescue = 0.25;
+      pStandard = 0.60;
+    } else if (size >= 12) {
+      // Large Grid: Increase large block weight
+      // Base Large was ~35%, now ~50%
+      pRescue = 0.10;
+      pStandard = 0.40;
+    }
+
+    if (rand < pRescue) return this.getRandomFrom(this.POOL_RESCUE);
+    if (rand < pRescue + pStandard) return this.getRandomFrom(this.POOL_STANDARD);
+    return this.getRandomFrom(this.POOL_LARGE);
+  }
+
+  // Logic for Slot 3 (Backfill)
+  private pickBackfillMatrix(areaLimit: number): number[][] {
+    // Collect all shapes that fit the area limit
+    const allShapes = [...this.POOL_RESCUE, ...this.POOL_STANDARD, ...this.POOL_LARGE];
+    const valid = allShapes.filter(m => this.getShapeArea(m) <= areaLimit);
+    
+    if (valid.length > 0) {
+      return this.getRandomFrom(valid);
+    }
+    // Fallback if hole is tiny
+    return [[1]]; 
+  }
+
+  private getRandomFrom(pool: number[][][]): number[][] {
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  // --- Board Analysis (BFS) ---
+  private getLargestContiguousEmpty(): number {
+    const size = this.gridSize();
+    const board = this.board();
+    const visited = new Set<string>();
+    let maxArea = 0;
+
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        if (!board[r][c].filled && !visited.has(`${r},${c}`)) {
+          // Start BFS
+          let area = 0;
+          const queue = [{r, c}];
+          visited.add(`${r},${c}`);
+
+          while (queue.length > 0) {
+            const curr = queue.shift()!;
+            area++;
+            
+            const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+            for (const d of dirs) {
+              const nr = curr.r + d[0];
+              const nc = curr.c + d[1];
+              if (nr >= 0 && nr < size && nc >= 0 && nc < size && 
+                  !board[nr][nc].filled && !visited.has(`${nr},${nc}`)) {
+                visited.add(`${nr},${nc}`);
+                queue.push({r: nr, c: nc});
+              }
+            }
+          }
+          if (area > maxArea) maxArea = area;
+        }
+      }
+    }
+    return maxArea;
+  }
+
+  // --- Feasibility Checker (Recursive) ---
+  private canPlaceBatch(shapes: Shape[]): boolean {
+    const simBoard = this.board().map(row => row.map(c => ({...c})));
+    return this.canPlaceRecursive(simBoard, shapes);
+  }
+
+  private canPlaceRecursive(currentBoard: Cell[][], remainingShapes: Shape[]): boolean {
+    if (remainingShapes.length === 0) return true;
+
+    const size = this.gridSize();
+    
+    // Adaptive Search Depth
+    // 6x6: Prioritize generating at least one safe piece -> handled in refillShapes fallback
+    // 12x12: Search multiple permutations -> loop logic handles permutations via recursion
+    
+    for (let i = 0; i < remainingShapes.length; i++) {
+      const shape = remainingShapes[i];
+      const others = remainingShapes.filter((_, idx) => idx !== i);
+      
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          if (this.canPlaceOnBoard(currentBoard, shape.matrix, r, c, size)) {
+            const nextBoard = this.simulatePlace(currentBoard, shape.matrix, r, c);
+            if (this.canPlaceRecursive(nextBoard, others)) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  private canPlaceOnBoard(board: Cell[][], matrix: number[][], row: number, col: number, size: number): boolean {
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[0].length; c++) {
+        if (matrix[r][c] === 1) {
           const targetR = row + r;
           const targetC = col + c;
           if (targetR < 0 || targetR >= size || targetC < 0 || targetC >= size) return false;
@@ -253,6 +438,24 @@ export class GameService {
       }
     }
     return true;
+  }
+
+  private simulatePlace(board: Cell[][], matrix: number[][], row: number, col: number): Cell[][] {
+    const newBoard = board.map(r => r.map(c => ({...c})));
+    for (let r = 0; r < matrix.length; r++) {
+      for (let c = 0; c < matrix[0].length; c++) {
+        if (matrix[r][c] === 1) {
+          newBoard[row + r][col + c].filled = true;
+        }
+      }
+    }
+    return newBoard;
+  }
+
+  // --- Standard Game Logic ---
+  
+  canPlace(shape: number[][], row: number, col: number): boolean {
+     return this.canPlaceOnBoard(this.board(), shape, row, col, this.gridSize());
   }
   
   updatePreview(shape: Shape, row: number, col: number) {
@@ -317,7 +520,7 @@ export class GameService {
     
     const totalLines = rowsToClear.length + colsToClear.length;
     
-    // Combo Logic
+    // Combo Logic (Tension Removed)
     if (totalLines > 0) {
       this.comboMultiplier.update(m => m + 1);
       this.movesSinceLastClear.set(0);
@@ -332,17 +535,10 @@ export class GameService {
     let linePoints = 0;
     if (totalLines > 0) {
       this.sound.playClear(totalLines);
-      
-      // Line Score Calculation
-      // Base: 10 per line
       linePoints = totalLines * 10;
-      
-      // Multi-Line Bonus (20+ for 2, 30+ for 3, etc.)
-      if (totalLines >= 2) {
-         linePoints += (totalLines * 10);
-      }
+      if (totalLines >= 2) linePoints += (totalLines * 10);
 
-      // Check Full Clear (Theme Cycle)
+      // Theme Cycle Check (Entire Board Clear)
       let totalFilled = 0;
       let filledInClear = 0;
       for(let r=0; r<size; r++) {
@@ -354,6 +550,7 @@ export class GameService {
         }
       }
 
+      // If every filled cell is part of the cleared lines, it's a Full Clear
       if (totalFilled > 0 && totalFilled === filledInClear) {
         this.triggerThemeCycle();
       }
@@ -364,14 +561,9 @@ export class GameService {
       this.board.set(nextBoard);
     }
     
-    // Final Scoring: (Placement + Line Clear) * Multiplier
     const totalMoveScore = (placementPoints + linePoints) * this.comboMultiplier();
     this.addScore(totalMoveScore);
-    
-    // Currency is 0.2x of total points
-    if (totalMoveScore > 0) {
-        this.addCurrency(Math.floor(totalMoveScore * 0.2));
-    }
+    if (totalMoveScore > 0) this.addCurrency(Math.floor(totalMoveScore * 0.2));
   }
 
   checkGameOver(currentHand: Shape[]) {
@@ -379,6 +571,7 @@ export class GameService {
     const size = this.gridSize();
     let canMove = false;
     for (const shape of currentHand) {
+      if (this.canPlaceOnBoard(this.board(), shape.matrix, -100, -100, size)) { }
       for (let r = 0; r < size; r++) {
         for (let c = 0; c < size; c++) {
           if (this.canPlace(shape.matrix, r, c)) {
@@ -420,19 +613,20 @@ export class GameService {
     setTimeout(() => this.themeCycleTrigger.set(false), 2000);
     const bonusScore = 500;
     this.addScore(bonusScore);
-    // Currency 0.2x of bonus points
     this.addCurrency(Math.floor(bonusScore * 0.2));
     
-    // Cycle Themes
+    // Cycle to next UNLOCKED theme
     const owned = this.ownedThemes();
-    const currentId = this.currentThemeId();
-    const idx = owned.indexOf(currentId);
-    const nextIdx = (idx + 1) % owned.length;
-    const nextId = owned[nextIdx];
-    
-    this.currentThemeId.set(nextId);
-    localStorage.setItem('blockBlastThemeId', nextId);
-    this.refillShapes();
+    if (owned.length > 1) {
+       const currentId = this.currentThemeId();
+       const idx = owned.indexOf(currentId);
+       const nextIdx = (idx + 1) % owned.length;
+       const nextId = owned[nextIdx];
+       
+       this.currentThemeId.set(nextId);
+       localStorage.setItem('blockBlastThemeId', nextId);
+       this.refillShapes(); // Refill with new theme colors
+    }
   }
 
   // --- Power Ups ---
@@ -443,7 +637,7 @@ export class GameService {
     const rotated = this.availableShapes().map(s => {
       const start = s.matrix;
       const end = start[0].map((val, index) => start.map(row => row[index]).reverse());
-      return { ...s, matrix: end };
+      return { ...s, matrix: end, area: this.getShapeArea(end) };
     });
     this.availableShapes.set(rotated);
   }
@@ -478,10 +672,6 @@ export class GameService {
     
     this.board.set(board);
     this.bombMode.set(false);
-    
-    // Bomb doesn't grant standard placement points or simple combo logic, 
-    // but clearing lines with bomb should count.
-    // For simplicity, we just check lines with 0 placement points.
     this.checkLines(0);
     this.bombMode.set(false);
   }
@@ -543,7 +733,7 @@ export class GameService {
       this.currentSoundPackId.set(id);
       this.sound.setPack(id);
       localStorage.setItem('blockBlastSoundId', id);
-      this.sound.playPickUp(); // Preview it
+      this.sound.playPickUp(); 
       return;
     }
     const pack = this.soundPacks.find(s => s.id === id);
@@ -555,7 +745,7 @@ export class GameService {
       this.currentSoundPackId.set(id);
       this.sound.setPack(id);
       localStorage.setItem('blockBlastSoundId', id);
-      this.sound.playPickUp(); // Preview
+      this.sound.playPickUp();
     }
   }
 }

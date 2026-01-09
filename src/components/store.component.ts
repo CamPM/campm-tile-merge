@@ -10,6 +10,11 @@ type Tab = 'boards' | 'sounds' | 'skins' | 'themes';
   imports: [ModalComponent],
   template: `
     <app-modal title="Shop" (close)="close.emit()">
+      <!-- Wallet Header in Shop -->
+      <div class="absolute top-6 right-16 flex items-center gap-1 bg-black/30 px-2 py-1 rounded-full text-sm font-bold border border-white/5">
+         <span class="text-yellow-400">$</span> <span class="text-white">{{ game.currency() }}</span>
+      </div>
+
       <!-- Tabs -->
       <div class="flex p-1 bg-black/20 rounded-lg mb-4 overflow-x-auto gap-1">
         <button (click)="activeTab.set('boards')" 
@@ -107,8 +112,16 @@ type Tab = 'boards' | 'sounds' | 'skins' | 'themes';
                   [class.ring-green-400]="game.currentSkinId() === skin.id">
                 
                 <div class="h-16 w-full rounded mb-2 bg-black/20 flex items-center justify-center gap-1">
-                   <!-- Preview block style -->
-                   <div class="w-8 h-8 bg-blue-500" [class]="skin.cellStyle"></div>
+                   <!-- Better Preview block style -->
+                   <div class="w-10 h-10 bg-blue-500 relative flex items-center justify-center" [class]="skin.cellStyle">
+                     @if(skin.id === 'toy') {
+                       <div class="w-[60%] h-[60%] rounded-full bg-white/20 shadow-sm border border-black/5"></div>
+                     }
+                     @if(skin.id === 'voxel') {
+                       <div class="absolute inset-0 border-t-4 border-l-4 border-white/40 border-b-4 border-r-4 border-black/20"></div>
+                       <div class="absolute inset-[4px] border border-black/10 bg-gradient-to-br from-white/10 to-transparent"></div>
+                     }
+                   </div>
                 </div>
                 
                 <div class="flex justify-between items-center">
