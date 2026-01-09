@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Block Blast Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom Animations */
+    @keyframes popIn {
+      0% { transform: scale(0); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes flash {
+      0% { background-color: rgba(255, 255, 255, 0.8); }
+      100% { background-color: transparent; }
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
+    .pop-in { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+    .flash-anim { animation: flash 0.5s ease-out forwards; }
+    .float-anim { animation: float 3s ease-in-out infinite; }
+    
+    /* Prevent selection and scrolling for game feel */
+    body {
+      overscroll-behavior: none;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "rxjs": "https://esm.sh/rxjs@^7.8.2?conditions=es2015",
+    "rxjs/operators": "https://esm.sh/rxjs@^7.8.2/operators?conditions=es2015",
+    "rxjs/ajax": "https://esm.sh/rxjs@^7.8.2/ajax?conditions=es2015",
+    "rxjs/webSocket": "https://esm.sh/rxjs@^7.8.2/webSocket?conditions=es2015",
+    "rxjs/testing": "https://esm.sh/rxjs@^7.8.2/testing?conditions=es2015",
+    "rxjs/fetch": "https://esm.sh/rxjs@^7.8.2/fetch?conditions=es2015",
+    "@angular/common": "https://esm.sh/@angular/common@^21.0.7?external=rxjs",
+    "@angular/core": "https://esm.sh/@angular/core@^21.0.7?external=rxjs",
+    "@angular/compiler": "https://esm.sh/@angular/compiler@^21.0.7?external=rxjs",
+    "@angular/platform-browser": "https://esm.sh/@angular/platform-browser@^21.0.7?external=rxjs"
+  }
+}
+</script>
+</head>
+<body class="bg-slate-900 text-white overflow-hidden h-screen w-screen">
+  <app-root></app-root>
+</body>
+</html>
