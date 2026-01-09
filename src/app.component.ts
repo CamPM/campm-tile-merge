@@ -33,8 +33,8 @@ export class AppComponent {
   readonly DRAG_Y_OFFSET = 65; 
   
   // Visual Lift: How far up (px) the VISUAL shape floats above the LOGIC point
-  // This creates a gap so the dragged shape doesn't cover the grid highlight
-  readonly VISUAL_LIFT = 50;
+  // This creates a small gap so the dragged shape doesn't cover the grid highlight
+  readonly VISUAL_LIFT = 20;
 
   // Bomb logic
   bombHoverPos = signal<{r: number, c: number} | null>(null);
