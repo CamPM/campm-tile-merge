@@ -14,6 +14,10 @@ import { StoreComponent } from './components/store.component';
   templateUrl: './app.component.html',
   styles: [`
     :host { display: block; height: 100vh; }
+    .invalid-drag {
+      filter: grayscale(0.5) sepia(1) hue-rotate(-60deg) saturate(5);
+      opacity: 0.9;
+    }
   `]
 })
 export class AppComponent {
@@ -28,6 +32,8 @@ export class AppComponent {
   // Drag logic
   dragTransform = signal('translate(0px, 0px)');
   dragCellSize = signal(0);
+  dragStartOffset = signal({ x: 0, y: 0 });
+  isPlacementValid = signal(true);
   
   // Visibility Offset: How far up (px) the LOGIC point is from the finger
   readonly DRAG_Y_OFFSET = 45; 
@@ -72,6 +78,14 @@ export class AppComponent {
     if (boardBounds) {
       this.dragCellSize.set(boardBounds.width / this.game.gridSize());
     }
+
+    // Calculate offset of pointer within the grabbed shape container
+    const targetEl = evt.currentTarget as HTMLElement;
+    const rect = targetEl.getBoundingClientRect();
+    const offsetX = evt.clientX - rect.left;
+    const offsetY = evt.clientY - rect.top;
+    this.dragStartOffset.set({ x: offsetX, y: offsetY });
+
 
     // Immediate update so it jumps to position
     this.updateDragState(evt.clientX, evt.clientY);
@@ -120,12 +134,12 @@ export class AppComponent {
       // Moved up from finger so finger doesn't obscure the target area
       const logicY = y - this.DRAG_Y_OFFSET;
       
-      // Visual Point: Where the shape is drawn
-      // Lifted even further up so the shape itself doesn't obscure the grid highlight
-      // effectively "dropping" the highlight below the preview shape
-      const visualY = logicY - this.VISUAL_LIFT;
+      // Visual Point: Where the shape is drawn. Based on initial grab point.
+      const offset = this.dragStartOffset();
+      const visualX = x - offset.x;
+      const visualY = y - offset.y - this.VISUAL_LIFT;
       
-      this.dragTransform.set(`translate(${x}px, ${visualY}px)`);
+      this.dragTransform.set(`translate(${visualX}px, ${visualY}px)`);
       this.checkGridIntersection(x, logicY, false);
     }
   }
@@ -145,6 +159,7 @@ export class AppComponent {
     this.game.draggedShapeOriginId.set(null);
     this.game.clearPreview();
     this.lastValidAnchor = null;
+    this.isPlacementValid.set(true);
   }
 
   // Calculate grid intersection and update state
@@ -175,7 +190,7 @@ export class AppComponent {
         }
       } else {
          const shape = this.game.draggedShape()!;
-         // Center the shape on finger
+         // Center the shape's logic on finger
          const rOffset = Math.floor(shape.matrix.length / 2);
          const cOffset = Math.floor(shape.matrix[0].length / 2);
          const targetR = row - rOffset;
@@ -185,19 +200,21 @@ export class AppComponent {
          if (this.game.canPlace(shape.matrix, targetR, targetC)) {
            this.game.updatePreview(shape, targetR, targetC);
            this.lastValidAnchor = {r: targetR, c: targetC};
+           this.isPlacementValid.set(true);
          } else {
-           this.game.clearPreview();
+           this.game.updateInvalidPreview(shape, targetR, targetC);
            this.lastValidAnchor = null;
+           this.isPlacementValid.set(false);
          }
       }
       return;
     }
     
+    // Pointer is off the board
+    this.game.clearPreview();
+    this.isPlacementValid.set(false);
     if (isBomb) this.bombHoverPos.set(null);
-    else {
-      this.game.clearPreview();
-      this.lastValidAnchor = null;
-    }
+    else this.lastValidAnchor = null;
   }
 
   // Fullscreen toggle

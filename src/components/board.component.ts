@@ -21,6 +21,30 @@ import { GameService } from '../services/game.service';
       box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 8px 1px rgba(255, 255, 255, 0.6);
       z-index: 20;
     }
+    .invalid-preview-highlight {
+      background-color: rgba(239, 68, 68, 0.4) !important;
+      box-shadow: inset 0 0 0 2px rgb(239, 68, 68);
+      z-index: 19;
+    }
+    @keyframes clearing-pulse-anim {
+      0% { transform: scale(1); box-shadow: inset 0 0 4px 2px rgba(255, 255, 255, 0.8); }
+      50% { transform: scale(1.1); box-shadow: inset 0 0 8px 4px rgba(255, 255, 255, 1); }
+      100% { transform: scale(1); box-shadow: inset 0 0 4px 2px rgba(255, 255, 255, 0.8); }
+    }
+    .clearing-pulse {
+      animation: clearing-pulse-anim 0.3s ease-in-out;
+      z-index: 30;
+    }
+    /* REFINED: Use a colored tint (gold) instead of white to prevent "white-out" */
+    .potential-clear-highlight {
+      background-color: rgba(250, 204, 21, 0.25);
+      box-shadow: inset 0 0 8px 2px rgba(251, 191, 36, 0.6);
+    }
+    /* NEW: Add a pulse/glow to existing blocks in a potential clear line */
+    .potential-clear-filled-highlight {
+      transform: scale(1.05);
+      box-shadow: inset 0 0 10px 3px rgba(255, 255, 255, 0.7);
+    }
   `],
   template: `
     <div #boardEl class="relative touch-none select-none p-2 rounded-xl bg-current/10 shadow-2xl backdrop-blur-sm border border-current/5 w-full h-full flex flex-col justify-center">
@@ -33,14 +57,19 @@ import { GameService } from '../services/game.service';
         @for (row of game.board(); track $index; let r = $index) {
           @for (cell of row; track $index; let c = $index) {
             @let isPreview = game.previewCells().has(r + ',' + c);
+            @let isInvalidPreview = game.invalidPreviewCells().has(r + ',' + c);
             
             <!-- Cell -->
             <div class="relative w-full h-full transition-all duration-200 flex items-center justify-center overflow-hidden"
                  [class]="getBaseClasses(r, c)"
                  [class.opacity-60]="!cell.filled && isPreview"
                  [class.preview-highlight]="!cell.filled && isPreview"
-                 [class.shape-glow]="cell.filled"
-                 [style.background-color]="cell.filled ? cell.color : (isPreview ? game.previewCells().get(r + ',' + c) : '')">
+                 [class.invalid-preview-highlight]="!cell.filled && isInvalidPreview"
+                 [class.shape-glow]="cell.filled && !isPotentialClear(r, c)"
+                 [class.potential-clear-highlight]="!cell.filled && isPotentialClear(r, c)"
+                 [class.potential-clear-filled-highlight]="cell.filled && isPotentialClear(r, c)"
+                 [class.clearing-pulse]="cell.filled && isClearing(r, c)"
+                 [style.background-color]="cell.filled ? (game.currentSkinId() === 'iron' ? '#D1D5DB' : cell.color) : (isPreview ? game.previewCells().get(r + ',' + c) : (isInvalidPreview ? game.invalidPreviewCells().get(r + ',' + c) : ''))">
                
                <!-- Cell Content / Inner Style -->
                @if(cell.filled && game.currentSkinId() === 'toy') {
@@ -48,12 +77,12 @@ import { GameService } from '../services/game.service';
                  <div class="w-[60%] h-[60%] rounded-full bg-white/20 shadow-sm border border-black/5"></div>
                }
                
-               <!-- Minecraft / Voxel Style Overlays -->
-               @if(cell.filled && game.currentSkinId() === 'voxel') {
-                 <!-- Outer Bevel (Light Top/Left, Dark Bottom/Right) -->
-                 <div class="absolute inset-0 border-t-4 border-l-4 border-white/40 border-b-4 border-r-4 border-black/20"></div>
-                 <!-- Inner Surface Noise/Detail -->
-                 <div class="absolute inset-[4px] border border-black/10 bg-gradient-to-br from-white/10 to-transparent"></div>
+               <!-- Iron Block Style -->
+               @if(cell.filled && game.currentSkinId() === 'iron') {
+                 <!-- Bevel -->
+                 <div class="absolute inset-0 border-t-2 border-l-2 border-white/70 border-b-2 border-r-2 border-black/25"></div>
+                 <!-- Streaks & Noise Texture -->
+                 <div class="absolute inset-[2px]" style="background-image: linear-gradient(90deg, rgba(255,255,255,.07) 50%, transparent 50%), linear-gradient(rgba(0,0,0,.04) 50%, transparent 50%); background-size: 8px 8px, 100% 4px;"></div>
                }
 
                <!-- Bomb Highlight Overlay -->
@@ -102,6 +131,18 @@ export class BoardComponent {
     
     // Check if r,c is within 3x3 of target
     return Math.abs(target.r - r) <= 1 && Math.abs(target.c - c) <= 1;
+  }
+
+  isPotentialClear(r: number, c: number): boolean {
+    const clears = this.game.potentialClearLines();
+    return clears.rows.includes(r) || clears.cols.includes(c);
+  }
+
+  isClearing(r: number, c: number): boolean {
+      return this.game.clearedLines().some(clear => 
+          (clear.type === 'row' && clear.indices.includes(r)) ||
+          (clear.type === 'col' && clear.indices.includes(c))
+      );
   }
 
   // Public method to get bounding rect for drag calculations

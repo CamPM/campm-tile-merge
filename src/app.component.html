@@ -119,12 +119,11 @@
   @if (game.draggedShape()) {
     <div class="fixed top-0 left-0 pointer-events-none z-50 transition-none"
          [style.transform]="dragTransform()">
-        <!-- Center the shape on the finger (offset handled in TS) -->
-        <div class="transform -translate-x-1/2 -translate-y-1/2">
-           <app-shape [matrix]="game.draggedShape()!.matrix" 
-                      [color]="game.draggedShape()!.color"
-                      [cellSize]="dragCellSize()"></app-shape>
-        </div>
+        <!-- The shape component is now positioned directly by the transform -->
+        <app-shape [matrix]="game.draggedShape()!.matrix" 
+                   [color]="game.draggedShape()!.color"
+                   [cellSize]="dragCellSize()"
+                   [class.invalid-drag]="!isPlacementValid()"></app-shape>
     </div>
   }
 
@@ -177,7 +176,7 @@
         </section>
         
         <div class="mt-4 pt-4 border-t border-white/10 text-center text-xs text-white/50">
-          Tile Merge v0.10
+          Tile Merge v0.11
         </div>
       </div>
     </app-modal>

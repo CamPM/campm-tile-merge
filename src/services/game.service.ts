@@ -63,6 +63,7 @@ export class GameService {
 
   // --- Preview & Drag ---
   previewCells = signal<Map<string, string>>(new Map());
+  invalidPreviewCells = signal<Map<string, string>>(new Map());
   availableShapes = signal<Shape[]>([]);
   
   draggedShape = signal<Shape | null>(null);
@@ -74,6 +75,7 @@ export class GameService {
   // --- Animation Triggers ---
   clearedLines = signal<{indices: number[], type: 'row' | 'col'}[]>([]);
   themeCycleTrigger = signal(false);
+  potentialClearLines = signal<{ rows: number[], cols: number[] }>({ rows: [], cols: [] });
 
   // --- Store Data ---
   gridOptions: GridOption[] = [
@@ -98,7 +100,7 @@ export class GameService {
     { id: 'classic', name: 'Classic', cellStyle: 'rounded-md border border-white/20 shadow-sm', cost: 0 },
     { id: 'tetris', name: 'Tetris', cellStyle: 'rounded-none border-t-4 border-l-4 border-white/40 border-b-4 border-r-4 border-black/20', cost: 1500 },
     { id: 'toy', name: 'Toy Bricks', cellStyle: 'rounded-[2px] shadow-md border-b-2 border-black/10', cost: 1500 },
-    { id: 'voxel', name: 'Mine Blocks', cellStyle: 'rounded-none', cost: 1500 }, // Style handled in board component for complexity
+    { id: 'iron', name: 'Iron Block', cellStyle: 'rounded-none', cost: 2500 }, // Style handled in board component for complexity
   ];
 
   themes: ColorTheme[] = [
@@ -198,103 +200,59 @@ export class GameService {
 
   // --- Advanced Shape Generation ---
   
-  // Base Pools
-  private POOL_RESCUE = [
-    [[1]], // Dot (1)
-    [[1, 1]], [[1], [1]], // 2-Bars (2)
-    [[1, 1], [1, 0]], [[0, 1], [1, 1]], // Mini Corners (3)
-  ];
+  private POOL_RESCUE = [[[1]], [[1, 1]], [[1], [1]], [[1, 1], [1, 0]], [[0, 1], [1, 1]]];
+  private POOL_STANDARD = [[[1, 1, 1]], [[1], [1], [1]], [[1, 1], [1, 1]], [[1, 1, 1], [0, 1, 0]], [[0, 1, 0], [1, 1, 1]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[1, 1], [1, 0]], [[1, 1], [0, 1]], [[1, 1, 1], [1, 0, 0]], [[1, 1, 1], [0, 0, 1]], [[1, 1, 0], [0, 1, 1]], [[0, 1, 1], [1, 1, 0]]];
+  private POOL_LARGE = [[[1, 1, 1, 1]], [[1], [1], [1], [1]], [[1, 1, 1], [1, 0, 0], [1, 0, 0]], [[1, 1, 1], [0, 0, 1], [0, 0, 1]], [[1, 1, 1], [1, 0, 1]], [[1, 0, 1], [1, 1, 1]], [[0, 1, 0], [1, 1, 1], [0, 1, 0]], [[1, 0, 0], [0, 1, 0], [0, 0, 1]], [[0, 0, 1], [0, 1, 0], [1, 0, 0]], [[1, 1, 1], [1, 1, 1]]];
 
-  private POOL_STANDARD = [
-    [[1, 1, 1]], [[1], [1], [1]], // 3-Bars
-    [[1, 1], [1, 1]], // Square (4)
-    [[1, 1, 1], [0, 1, 0]], [[0, 1, 0], [1, 1, 1]], // T
-    [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[1, 1], [1, 0]], [[1, 1], [0, 1]], // Corners
-    [[1, 1, 1], [1, 0, 0]], [[1, 1, 1], [0, 0, 1]], // L
-    [[1, 1, 0], [0, 1, 1]], [[0, 1, 1], [1, 1, 0]] // Z/S
-  ];
+  private getShapeArea = (matrix: number[][]): number => matrix.reduce((s, r) => s + r.reduce((c, v) => c + v, 0), 0);
+  private getBoardDensity = (): number => this.board().reduce((s, r) => s + r.filter(c => c.filled).length, 0) / (this.gridSize() * this.gridSize());
 
-  private POOL_LARGE = [
-    [[1, 1, 1, 1]], [[1], [1], [1], [1]], // 4-Bars
-    [[1, 1, 1], [1, 0, 0], [1, 0, 0]], // Big L (5)
-    [[1, 1, 1], [0, 0, 1], [0, 0, 1]], // Big J
-    [[1, 1, 1], [1, 0, 1]], // U shape (5)
-    [[1, 0, 1], [1, 1, 1]], // U shape inverted
-    [[0, 1, 0], [1, 1, 1], [0, 1, 0]], // Plus (5)
-    [[1, 0, 0], [0, 1, 0], [0, 0, 1]], // Diagonal 3
-    [[0, 0, 1], [0, 1, 0], [1, 0, 0]], // Diagonal 3 reverse
-    [[1, 1, 1], [1, 1, 1]], // 2x3 block (6)
-    // SGR note: 4x4 not added to preserve mobile view, 2x3 is largest area
-  ];
-
-  // Helper to count active cells (Area)
-  private getShapeArea(matrix: number[][]): number {
-    return matrix.reduce((sum, row) => sum + row.reduce((rSum, val) => rSum + val, 0), 0);
-  }
-
-  // Helper: Critical Density Check
-  private getBoardDensity(): number {
-    const board = this.board();
-    const size = this.gridSize();
-    let filled = 0;
-    for (let r = 0; r < size; r++) {
-      for (let c = 0; c < size; c++) {
-        if (board[r][c].filled) filled++;
-      }
-    }
-    return filled / (size * size);
-  }
-
-  // ALGORITHM: Adaptive Batch Generation with SGR and Critical Density
   refillShapes() {
     const theme = this.currentTheme();
     const size = this.gridSize();
-    
-    // 1. Analyze Board State
-    const maxContiguous = this.getLargestContiguousEmpty();
     const density = this.getBoardDensity();
-    
-    // Critical Density Recovery: > 75% filled triggers "Recovery Mode"
-    const isRecoveryMode = density > 0.75;
-    
-    const maxRetries = size <= 6 ? 20 : 5;
+    const isRecoveryMode = density > 0.70;
+    const maxRetries = 10;
     
     let bestBatch: Shape[] = [];
-    let isSolvable = false;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const candidates: Shape[] = [];
+      const mat1 = this.pickMatrixSGR(isRecoveryMode, size);
+      const mat2 = this.pickMatrixSGR(isRecoveryMode, size);
+      const backfillLimit = Math.max(1, Math.floor(this.getLargestContiguousEmpty() * 0.6));
+      const mat3 = this.pickBackfillMatrix(backfillLimit);
       
-      // Slot 1 & 2: Global Pool with SGR and Density logic
-      for (let i = 0; i < 2; i++) {
-        const mat = this.pickMatrixSGR(isRecoveryMode, size);
-        candidates.push(this.createShape(mat, theme));
-      }
+      candidates.push(this.createShape(mat1, theme));
+      candidates.push(this.createShape(mat2, theme));
+      candidates.push(this.createShape(mat3, theme));
 
-      // Slot 3: Backfill Logic
-      // Constraint: Occupy <= 60% of largest sub-region
-      const backfillLimit = Math.max(1, Math.floor(maxContiguous * 0.6));
-      const backfillMat = this.pickBackfillMatrix(backfillLimit);
-      candidates.push(this.createShape(backfillMat, theme));
-
-      // Feasibility Check
-      if (this.canPlaceBatch(candidates)) {
+      if (this.countPlaceable(candidates, this.board()) > 0) {
         bestBatch = candidates;
-        isSolvable = true;
-        break;
+        break; // Found a solvable batch
       }
       
-      if (attempt === 0) bestBatch = candidates;
+      if (attempt === 0) bestBatch = candidates; // Save first attempt as fallback
     }
 
-    // Adaptive Search Depth / Safety Fallback
-    // In a 6x6 grid, if not solvable, prioritize generating at least one "safety" piece (1x1 or 1x2).
-    if (!isSolvable && (size <= 6 || isRecoveryMode)) {
-       // Force the first shape to be a small rescue shape
+    if (bestBatch.length === 0 || this.countPlaceable(bestBatch, this.board()) === 0) {
        bestBatch[0] = this.createShape(this.getRandomFrom(this.POOL_RESCUE), theme);
     }
 
     this.availableShapes.set(bestBatch);
+  }
+
+  private countPlaceable(shapes: Shape[], board: Cell[][]): number {
+    return shapes.filter(shape => {
+        for (let r = 0; r < this.gridSize(); r++) {
+            for (let c = 0; c < this.gridSize(); c++) {
+                if (this.canPlaceOnBoard(board, shape.matrix, r, c, this.gridSize())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }).length;
   }
 
   private createShape(matrix: number[][], theme: ColorTheme): Shape {
@@ -306,85 +264,48 @@ export class GameService {
     };
   }
 
-  // Logic for Slot 1 & 2 with Shape-to-Grid Ratio (SGR)
-  // Removed Tension Delay: No longer scaling based on performance
   private pickMatrixSGR(recovery: boolean, size: GridSize): number[][] {
     const rand = Math.random();
-    
-    // Critical Density Check: If Board is 75% full, panic and give small pieces
     if (recovery) {
-       // 80% Rescue, 20% Standard
        return rand < 0.8 ? this.getRandomFrom(this.POOL_RESCUE) : this.getRandomFrom(this.POOL_STANDARD);
     }
-
-    // SGR: Adjust weights based on Grid Size N
-    let pRescue = 0.15;
-    let pStandard = 0.50;
-    // pLarge is remainder
-    
-    if (size <= 6) {
-      // Small Grid: Reduce large block weight by ~50%
-      // Base Large was ~35%, now ~15%. Redistribute to Standard/Rescue
-      pRescue = 0.25;
-      pStandard = 0.60;
-    } else if (size >= 12) {
-      // Large Grid: Increase large block weight
-      // Base Large was ~35%, now ~50%
-      pRescue = 0.10;
-      pStandard = 0.40;
-    }
-
+    let pRescue = 0.15, pStandard = 0.50;
+    if (size <= 6) { pRescue = 0.25; pStandard = 0.60; } 
+    else if (size >= 12) { pRescue = 0.10; pStandard = 0.40; }
     if (rand < pRescue) return this.getRandomFrom(this.POOL_RESCUE);
     if (rand < pRescue + pStandard) return this.getRandomFrom(this.POOL_STANDARD);
     return this.getRandomFrom(this.POOL_LARGE);
   }
 
-  // Logic for Slot 3 (Backfill)
   private pickBackfillMatrix(areaLimit: number): number[][] {
-    // Collect all shapes that fit the area limit
     const allShapes = [...this.POOL_RESCUE, ...this.POOL_STANDARD, ...this.POOL_LARGE];
     const valid = allShapes.filter(m => this.getShapeArea(m) <= areaLimit);
-    
-    if (valid.length > 0) {
-      return this.getRandomFrom(valid);
-    }
-    // Fallback if hole is tiny
-    return [[1]]; 
+    return valid.length > 0 ? this.getRandomFrom(valid) : [[1]]; 
   }
 
-  private getRandomFrom(pool: number[][][]): number[][] {
-    return pool[Math.floor(Math.random() * pool.length)];
-  }
+  private getRandomFrom = (pool: number[][][]): number[][] => pool[Math.floor(Math.random() * pool.length)];
 
-  // --- Board Analysis (BFS) ---
   private getLargestContiguousEmpty(): number {
     const size = this.gridSize();
     const board = this.board();
     const visited = new Set<string>();
     let maxArea = 0;
-
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
         if (!board[r][c].filled && !visited.has(`${r},${c}`)) {
-          // Start BFS
           let area = 0;
           const queue = [{r, c}];
           visited.add(`${r},${c}`);
-
           while (queue.length > 0) {
             const curr = queue.shift()!;
             area++;
-            
-            const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-            for (const d of dirs) {
-              const nr = curr.r + d[0];
-              const nc = curr.c + d[1];
-              if (nr >= 0 && nr < size && nc >= 0 && nc < size && 
-                  !board[nr][nc].filled && !visited.has(`${nr},${nc}`)) {
+            [[0, 1], [0, -1], [1, 0], [-1, 0]].forEach(d => {
+              const nr = curr.r + d[0], nc = curr.c + d[1];
+              if (nr >= 0 && nr < size && nc >= 0 && nc < size && !board[nr][nc].filled && !visited.has(`${nr},${nc}`)) {
                 visited.add(`${nr},${nc}`);
                 queue.push({r: nr, c: nc});
               }
-            }
+            });
           }
           if (area > maxArea) maxArea = area;
         }
@@ -392,48 +313,13 @@ export class GameService {
     }
     return maxArea;
   }
-
-  // --- Feasibility Checker (Recursive) ---
-  private canPlaceBatch(shapes: Shape[]): boolean {
-    const simBoard = this.board().map(row => row.map(c => ({...c})));
-    return this.canPlaceRecursive(simBoard, shapes);
-  }
-
-  private canPlaceRecursive(currentBoard: Cell[][], remainingShapes: Shape[]): boolean {
-    if (remainingShapes.length === 0) return true;
-
-    const size = this.gridSize();
-    
-    // Adaptive Search Depth
-    // 6x6: Prioritize generating at least one safe piece -> handled in refillShapes fallback
-    // 12x12: Search multiple permutations -> loop logic handles permutations via recursion
-    
-    for (let i = 0; i < remainingShapes.length; i++) {
-      const shape = remainingShapes[i];
-      const others = remainingShapes.filter((_, idx) => idx !== i);
-      
-      for (let r = 0; r < size; r++) {
-        for (let c = 0; c < size; c++) {
-          if (this.canPlaceOnBoard(currentBoard, shape.matrix, r, c, size)) {
-            const nextBoard = this.simulatePlace(currentBoard, shape.matrix, r, c);
-            if (this.canPlaceRecursive(nextBoard, others)) {
-              return true;
-            }
-          }
-        }
-      }
-    }
-    return false;
-  }
-
+  
   private canPlaceOnBoard(board: Cell[][], matrix: number[][], row: number, col: number, size: number): boolean {
     for (let r = 0; r < matrix.length; r++) {
       for (let c = 0; c < matrix[0].length; c++) {
         if (matrix[r][c] === 1) {
-          const targetR = row + r;
-          const targetC = col + c;
-          if (targetR < 0 || targetR >= size || targetC < 0 || targetC >= size) return false;
-          if (board[targetR][targetC].filled) return false;
+          const targetR = row + r, targetC = col + c;
+          if (targetR < 0 || targetR >= size || targetC < 0 || targetC >= size || board[targetR][targetC].filled) return false;
         }
       }
     }
@@ -444,83 +330,100 @@ export class GameService {
     const newBoard = board.map(r => r.map(c => ({...c})));
     for (let r = 0; r < matrix.length; r++) {
       for (let c = 0; c < matrix[0].length; c++) {
-        if (matrix[r][c] === 1) {
-          newBoard[row + r][col + c].filled = true;
-        }
+        if (matrix[r][c] === 1) { newBoard[row + r][col + c].filled = true; }
       }
     }
     return newBoard;
   }
 
-  // --- Standard Game Logic ---
-  
-  canPlace(shape: number[][], row: number, col: number): boolean {
-     return this.canPlaceOnBoard(this.board(), shape, row, col, this.gridSize());
-  }
+  canPlace = (shape: number[][], row: number, col: number): boolean => this.canPlaceOnBoard(this.board(), shape, row, col, this.gridSize());
   
   updatePreview(shape: Shape, row: number, col: number) {
-    if (!this.canPlace(shape.matrix, row, col)) {
-      if (this.previewCells().size > 0) this.clearPreview();
-      return;
-    }
     const newPreview = new Map<string, string>();
     for (let r = 0; r < shape.matrix.length; r++) {
       for (let c = 0; c < shape.matrix[0].length; c++) {
-        if (shape.matrix[r][c] === 1) {
-          newPreview.set(`${row + r},${col + c}`, shape.color);
-        }
+        if (shape.matrix[r][c] === 1) newPreview.set(`${row + r},${col + c}`, shape.color);
       }
     }
     this.previewCells.set(newPreview);
+    this.invalidPreviewCells.set(new Map()); // Clear invalid preview
+    this.checkPotentialClears(shape, row, col);
+  }
+  
+  updateInvalidPreview(shape: Shape, row: number, col: number) {
+    const newInvalidPreview = new Map<string, string>();
+    const invalidColor = '#ef4444'; // Red-500 from Tailwind
+
+    for (let r = 0; r < shape.matrix.length; r++) {
+      for (let c = 0; c < shape.matrix[0].length; c++) {
+        if (shape.matrix[r][c] === 1) {
+          const targetR = row + r;
+          const targetC = col + c;
+          if (targetR >= 0 && targetR < this.gridSize() && targetC >= 0 && targetC < this.gridSize()) {
+              newInvalidPreview.set(`${targetR},${targetC}`, invalidColor);
+          }
+        }
+      }
+    }
+    this.invalidPreviewCells.set(newInvalidPreview);
+    this.previewCells.set(new Map()); // Clear valid preview
+    this.potentialClearLines.set({ rows: [], cols: [] }); // Clear potential clears
+  }
+
+  private checkPotentialClears(shape: Shape, row: number, col: number) {
+    const simBoard = this.simulatePlace(this.board(), shape.matrix, row, col);
+    const size = this.gridSize();
+    const rowsToClear: number[] = [];
+    const colsToClear: number[] = [];
+    for (let r = 0; r < size; r++) if (simBoard[r].every(cell => cell.filled)) rowsToClear.push(r);
+    for (let c = 0; c < size; c++) if (simBoard.every(row => row[c].filled)) colsToClear.push(c);
+    this.potentialClearLines.set({ rows: rowsToClear, cols: colsToClear });
   }
 
   clearPreview() {
     this.previewCells.set(new Map());
+    this.invalidPreviewCells.set(new Map());
+    this.potentialClearLines.set({ rows: [], cols: [] });
   }
 
   placeShape(shape: Shape, row: number, col: number) {
     const currentBoard = this.board().map(row => [...row]); 
-    let placed = false;
     let placementPoints = 0;
-
     for (let r = 0; r < shape.matrix.length; r++) {
       for (let c = 0; c < shape.matrix[0].length; c++) {
         if (shape.matrix[r][c] === 1) {
           currentBoard[row + r][col + c] = { filled: true, color: shape.color, id: Math.random() };
-          placed = true;
           placementPoints++;
         }
       }
     }
 
-    if (placed) {
-      this.board.set(currentBoard);
-      this.sound.playDrop();
-      const hand = this.availableShapes().filter(s => s.id !== shape.id);
-      this.availableShapes.set(hand);
-      this.clearPreview(); 
-      this.checkLines(placementPoints);
-      
+    this.board.set(currentBoard);
+    this.sound.playDrop();
+    const hand = this.availableShapes().filter(s => s.id !== shape.id);
+    this.availableShapes.set(hand);
+    this.clearPreview(); 
+    
+    const linesWereCleared = this.checkLines(placementPoints);
+    if (!linesWereCleared) {
       if (hand.length === 0) {
-        setTimeout(() => this.refillShapes(), 300);
+        setTimeout(() => this.refillShapes(), 100);
       } else {
         this.checkGameOver(hand);
       }
     }
   }
 
-  checkLines(placementPoints: number) {
+  private checkLines(placementPoints: number): boolean {
     const board = this.board();
     const size = this.gridSize();
-    const rowsToClear: number[] = [];
-    const colsToClear: number[] = [];
+    const rowsToClear: number[] = [], colsToClear: number[] = [];
 
     for (let r = 0; r < size; r++) if (board[r].every(cell => cell.filled)) rowsToClear.push(r);
     for (let c = 0; c < size; c++) if (board.every(row => row[c].filled)) colsToClear.push(c);
     
     const totalLines = rowsToClear.length + colsToClear.length;
     
-    // Combo Logic (Tension Removed)
     if (totalLines > 0) {
       this.comboMultiplier.update(m => m + 1);
       this.movesSinceLastClear.set(0);
@@ -535,55 +438,34 @@ export class GameService {
     let linePoints = 0;
     if (totalLines > 0) {
       this.sound.playClear(totalLines);
-      linePoints = totalLines * 10;
-      if (totalLines >= 2) linePoints += (totalLines * 10);
+      linePoints = totalLines * 10 + (totalLines >= 2 ? totalLines * 10 : 0);
 
-      // Theme Cycle Check (Entire Board Clear)
-      let totalFilled = 0;
-      let filledInClear = 0;
-      for(let r=0; r<size; r++) {
-        for(let c=0; c<size; c++) {
-          if (board[r][c].filled) {
-            totalFilled++;
-            if (rowsToClear.includes(r) || colsToClear.includes(c)) filledInClear++;
-          }
-        }
-      }
-
-      // If every filled cell is part of the cleared lines, it's a Full Clear
-      if (totalFilled > 0 && totalFilled === filledInClear) {
-        this.triggerThemeCycle();
-      }
+      const totalFilled = board.flat().filter(c => c.filled).length;
+      const filledInClear = board.flat().filter((c, i) => c.filled && (rowsToClear.includes(Math.floor(i/size)) || colsToClear.includes(i%size))).length;
+      if (totalFilled > 0 && totalFilled === filledInClear) this.triggerThemeCycle();
       
-      const nextBoard = board.map(r => r.map(c => ({...c})));
-      rowsToClear.forEach(r => { for(let c=0; c<size; c++) nextBoard[r][c] = { filled: false }; });
-      colsToClear.forEach(c => { for(let r=0; r<size; r++) nextBoard[r][c] = { filled: false }; });
-      this.board.set(nextBoard);
+      this.clearedLines.set([{indices: rowsToClear, type: 'row'}, {indices: colsToClear, type: 'col'}]);
+      setTimeout(() => {
+        const nextBoard = this.board().map(r => r.map(c => ({...c})));
+        rowsToClear.forEach(r => { for(let c=0; c<size; c++) nextBoard[r][c] = { filled: false }; });
+        colsToClear.forEach(c => { for(let r=0; r<size; r++) nextBoard[r][c] = { filled: false }; });
+        this.board.set(nextBoard);
+        this.clearedLines.set([]);
+        const hand = this.availableShapes();
+        if (hand.length === 0) this.refillShapes();
+        else this.checkGameOver(hand);
+      }, 350);
     }
     
     const totalMoveScore = (placementPoints + linePoints) * this.comboMultiplier();
     this.addScore(totalMoveScore);
     if (totalMoveScore > 0) this.addCurrency(Math.floor(totalMoveScore * 0.2));
+    return totalLines > 0;
   }
 
   checkGameOver(currentHand: Shape[]) {
     if (currentHand.length === 0) return;
-    const size = this.gridSize();
-    let canMove = false;
-    for (const shape of currentHand) {
-      if (this.canPlaceOnBoard(this.board(), shape.matrix, -100, -100, size)) { }
-      for (let r = 0; r < size; r++) {
-        for (let c = 0; c < size; c++) {
-          if (this.canPlace(shape.matrix, r, c)) {
-            canMove = true;
-            break;
-          }
-        }
-        if (canMove) break;
-      }
-      if (canMove) break;
-    }
-    if (!canMove) {
+    if (this.countPlaceable(currentHand, this.board()) === 0) {
       this.sound.playError();
       this.gameOver.set(true);
     }
@@ -615,30 +497,21 @@ export class GameService {
     this.addScore(bonusScore);
     this.addCurrency(Math.floor(bonusScore * 0.2));
     
-    // Cycle to next UNLOCKED theme
     const owned = this.ownedThemes();
     if (owned.length > 1) {
-       const currentId = this.currentThemeId();
-       const idx = owned.indexOf(currentId);
-       const nextIdx = (idx + 1) % owned.length;
-       const nextId = owned[nextIdx];
-       
+       const idx = owned.indexOf(this.currentThemeId());
+       const nextId = owned[(idx + 1) % owned.length];
        this.currentThemeId.set(nextId);
        localStorage.setItem('blockBlastThemeId', nextId);
-       this.refillShapes(); // Refill with new theme colors
+       this.refillShapes();
     }
   }
 
-  // --- Power Ups ---
   rotateHand() {
     if (this.currency() < 50) return;
     this.addCurrency(-50);
     this.sound.playPowerUp();
-    const rotated = this.availableShapes().map(s => {
-      const start = s.matrix;
-      const end = start[0].map((val, index) => start.map(row => row[index]).reverse());
-      return { ...s, matrix: end, area: this.getShapeArea(end) };
-    });
+    const rotated = this.availableShapes().map(s => ({ ...s, matrix: s.matrix[0].map((_, i) => s.matrix.map(r => r[i]).reverse()) }));
     this.availableShapes.set(rotated);
   }
 
@@ -661,12 +534,9 @@ export class GameService {
     
     const board = this.board().map(r => [...r]);
     const size = this.gridSize();
-    
     for(let r = row - 1; r <= row + 1; r++) {
       for(let c = col - 1; c <= col + 1; c++) {
-        if (r >= 0 && r < size && c >= 0 && c < size) {
-          board[r][c] = { filled: false };
-        }
+        if (r >= 0 && r < size && c >= 0 && c < size) board[r][c] = { filled: false };
       }
     }
     
@@ -676,7 +546,6 @@ export class GameService {
     this.bombMode.set(false);
   }
 
-  // --- Purchasing ---
   buyTheme(id: string) {
     if (this.ownedThemes().includes(id)) {
       this.currentThemeId.set(id);
@@ -685,15 +554,13 @@ export class GameService {
       return;
     }
     const theme = this.themes.find(t => t.id === id);
-    if (!theme) return;
-    if (this.currency() >= theme.cost) {
-      this.addCurrency(-theme.cost);
-      this.ownedThemes.update(o => [...o, id]);
-      localStorage.setItem('blockBlastOwnedThemes', JSON.stringify(this.ownedThemes()));
-      this.currentThemeId.set(id);
-      localStorage.setItem('blockBlastThemeId', id);
-      this.refillShapes();
-    }
+    if (!theme || this.currency() < theme.cost) return;
+    this.addCurrency(-theme.cost);
+    this.ownedThemes.update(o => [...o, id]);
+    localStorage.setItem('blockBlastOwnedThemes', JSON.stringify(this.ownedThemes()));
+    this.currentThemeId.set(id);
+    localStorage.setItem('blockBlastThemeId', id);
+    this.refillShapes();
   }
 
   buySkin(id: string) {
@@ -703,14 +570,12 @@ export class GameService {
       return;
     }
     const skin = this.blockSkins.find(s => s.id === id);
-    if (!skin) return;
-    if (this.currency() >= skin.cost) {
-      this.addCurrency(-skin.cost);
-      this.ownedSkins.update(o => [...o, id]);
-      localStorage.setItem('blockBlastOwnedSkins', JSON.stringify(this.ownedSkins()));
-      this.currentSkinId.set(id);
-      localStorage.setItem('blockBlastSkinId', id);
-    }
+    if (!skin || this.currency() < skin.cost) return;
+    this.addCurrency(-skin.cost);
+    this.ownedSkins.update(o => [...o, id]);
+    localStorage.setItem('blockBlastOwnedSkins', JSON.stringify(this.ownedSkins()));
+    this.currentSkinId.set(id);
+    localStorage.setItem('blockBlastSkinId', id);
   }
 
   buyGrid(size: number) {
@@ -719,13 +584,11 @@ export class GameService {
       return;
     }
     const grid = this.gridOptions.find(g => g.size === size);
-    if (!grid) return;
-    if (this.currency() >= grid.cost) {
-      this.addCurrency(-grid.cost);
-      this.ownedGrids.update(o => [...o, size]);
-      localStorage.setItem('blockBlastOwnedGrids', JSON.stringify(this.ownedGrids()));
-      this.setGridSize(size as GridSize);
-    }
+    if (!grid || this.currency() < grid.cost) return;
+    this.addCurrency(-grid.cost);
+    this.ownedGrids.update(o => [...o, size]);
+    localStorage.setItem('blockBlastOwnedGrids', JSON.stringify(this.ownedGrids()));
+    this.setGridSize(size as GridSize);
   }
 
   buySoundPack(id: SoundPackId) {
@@ -737,15 +600,13 @@ export class GameService {
       return;
     }
     const pack = this.soundPacks.find(s => s.id === id);
-    if (!pack) return;
-    if (this.currency() >= pack.cost) {
-      this.addCurrency(-pack.cost);
-      this.ownedSoundPacks.update(o => [...o, id]);
-      localStorage.setItem('blockBlastOwnedSounds', JSON.stringify(this.ownedSoundPacks()));
-      this.currentSoundPackId.set(id);
-      this.sound.setPack(id);
-      localStorage.setItem('blockBlastSoundId', id);
-      this.sound.playPickUp();
-    }
+    if (!pack || this.currency() < pack.cost) return;
+    this.addCurrency(-pack.cost);
+    this.ownedSoundPacks.update(o => [...o, id]);
+    localStorage.setItem('blockBlastOwnedSounds', JSON.stringify(this.ownedSoundPacks()));
+    this.currentSoundPackId.set(id);
+    this.sound.setPack(id);
+    localStorage.setItem('blockBlastSoundId', id);
+    this.sound.playPickUp();
   }
 }

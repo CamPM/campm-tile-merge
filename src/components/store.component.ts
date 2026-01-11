@@ -113,13 +113,19 @@ type Tab = 'boards' | 'sounds' | 'skins' | 'themes';
                 
                 <div class="h-16 w-full rounded mb-2 bg-black/20 flex items-center justify-center gap-1">
                    <!-- Better Preview block style -->
-                   <div class="w-10 h-10 bg-blue-500 relative flex items-center justify-center" [class]="skin.cellStyle">
+                   @let isSpecialSkin = skin.id === 'iron';
+                   <div class="w-10 h-10 relative flex items-center justify-center" 
+                        [class]="skin.cellStyle"
+                        [class.bg-blue-500]="!isSpecialSkin">
                      @if(skin.id === 'toy') {
                        <div class="w-[60%] h-[60%] rounded-full bg-white/20 shadow-sm border border-black/5"></div>
                      }
-                     @if(skin.id === 'voxel') {
-                       <div class="absolute inset-0 border-t-4 border-l-4 border-white/40 border-b-4 border-r-4 border-black/20"></div>
-                       <div class="absolute inset-[4px] border border-black/10 bg-gradient-to-br from-white/10 to-transparent"></div>
+                     @if(skin.id === 'iron') {
+                        <div class="absolute inset-0 bg-[#D1D5DB]"></div>
+                        <!-- Bevel -->
+                        <div class="absolute inset-0 border-t-4 border-l-4 border-white/70 border-b-4 border-r-4 border-black/25"></div>
+                        <!-- Streaks & Noise Texture -->
+                        <div class="absolute inset-[4px]" style="background-image: linear-gradient(90deg, rgba(255,255,255,.07) 50%, transparent 50%), linear-gradient(rgba(0,0,0,.04) 50%, transparent 50%); background-size: 8px 8px, 100% 4px;"></div>
                      }
                    </div>
                 </div>
