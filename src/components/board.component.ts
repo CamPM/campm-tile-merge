@@ -50,7 +50,7 @@ import { GameService } from '../services/game.service';
     <div #boardEl class="relative touch-none select-none p-2 rounded-xl bg-current/10 shadow-2xl backdrop-blur-sm border border-current/5 w-full h-full flex flex-col justify-center">
       
       <!-- Grid Container -->
-      <div class="grid w-full h-full gap-[1.5%]"
+      <div #gridEl class="grid w-full h-full gap-[1.5%]"
            [style.grid-template-columns]="'repeat(' + game.gridSize() + ', 1fr)'"
            [style.grid-template-rows]="'repeat(' + game.gridSize() + ', 1fr)'">
         
@@ -99,6 +99,7 @@ import { GameService } from '../services/game.service';
 export class BoardComponent {
   game = inject(GameService);
   boardEl = viewChild<ElementRef>('boardEl');
+  gridEl = viewChild<ElementRef>('gridEl');
   bombHover = input<{r: number, c: number} | null>(null);
 
   // Computed helper for base cell styles
@@ -148,6 +149,12 @@ export class BoardComponent {
   // Public method to get bounding rect for drag calculations
   getBounds(): DOMRect | null {
     const el = this.boardEl();
+    return el ? el.nativeElement.getBoundingClientRect() : null;
+  }
+  
+  // NEW: Public method to get the grid's bounding rect for precise snapping
+  getGridBounds(): DOMRect | null {
+    const el = this.gridEl();
     return el ? el.nativeElement.getBoundingClientRect() : null;
   }
 }

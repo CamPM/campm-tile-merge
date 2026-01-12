@@ -38,7 +38,7 @@ export class AppComponent {
   // Visibility Offset: How far up (px) the LOGIC point is from the finger
   readonly DRAG_Y_OFFSET = 45; 
   
-  // Visual Lift: How far up (px) the VISUAL shape floats above the LOGIC point
+  // Visual Lift: How far up (px) the VISUAL shape floats above its snapped position
   // This creates a small gap so the dragged shape doesn't cover the grid highlight
   readonly VISUAL_LIFT = 15;
 
@@ -74,9 +74,14 @@ export class AppComponent {
     this.sound.playPickUp();
 
     // Calculate cell size for the dragged ghost to match board exactly
-    const boardBounds = this.boardComp()?.getBounds();
-    if (boardBounds) {
-      this.dragCellSize.set(boardBounds.width / this.game.gridSize());
+    const gridBounds = this.boardComp()?.getGridBounds();
+    if (gridBounds) {
+        const size = this.game.gridSize();
+        const gapPercent = 0.015; // from CSS `gap-[1.5%]`
+        const totalGapSpace = (size - 1) * (gridBounds.width * gapPercent);
+        const totalCellSpace = gridBounds.width - totalGapSpace;
+        const cellWidth = totalCellSpace / size;
+        this.dragCellSize.set(cellWidth);
     }
 
     // Calculate offset of pointer within the grabbed shape container
@@ -121,26 +126,63 @@ export class AppComponent {
   private updateDragState(x: number, y: number) {
     // 1. Handle Bomb Hover
     if (this.game.bombMode()) {
-      // No offset for bomb, user points directly at target
       this.dragTransform.set(`translate(${x}px, ${y}px)`);
-      this.checkGridIntersection(x, y, true); // true = isBomb
+      this.updateBombHover(x, y);
       return;
     }
 
     // 2. Handle Shape Drag
     const shape = this.game.draggedShape();
-    if (shape) {
-      // Logic Point: Where the game calculates placement
-      // Moved up from finger so finger doesn't obscure the target area
-      const logicY = y - this.DRAG_Y_OFFSET;
-      
-      // Visual Point: Where the shape is drawn. Based on initial grab point.
-      const offset = this.dragStartOffset();
-      const visualX = x - offset.x;
-      const visualY = y - offset.y - this.VISUAL_LIFT;
-      
-      this.dragTransform.set(`translate(${visualX}px, ${visualY}px)`);
-      this.checkGridIntersection(x, logicY, false);
+    if (!shape) return;
+
+    // The logical point for grid calculation is offset from the cursor
+    const logicY = y - this.DRAG_Y_OFFSET;
+
+    // Get snapped top-left grid coordinates for the shape
+    const placement = this.getSnappedPlacement(x, logicY);
+
+    if (placement) {
+        // The shape is over the board area
+        // A. Update the preview on the board (ghost cells)
+        if (this.game.canPlace(shape.matrix, placement.r, placement.c)) {
+            this.game.updatePreview(shape, placement.r, placement.c);
+            this.lastValidAnchor = placement;
+            this.isPlacementValid.set(true);
+        } else {
+            this.game.updateInvalidPreview(shape, placement.r, placement.c);
+            this.lastValidAnchor = null;
+            this.isPlacementValid.set(false);
+        }
+        
+        // B. Calculate the pixel position for the dragged element to snap to
+        const gridBounds = this.boardComp()!.getGridBounds()!;
+        const size = this.game.gridSize();
+        const gapPercent = 0.015;
+
+        const totalGapSpace = (size - 1) * (gridBounds.width * gapPercent);
+        const totalCellSpace = gridBounds.width - totalGapSpace;
+        const cellWidth = totalCellSpace / size;
+        const gapWidth = gridBounds.width * gapPercent;
+        const stepWidth = cellWidth + gapWidth;
+        
+        const snappedPixelX = gridBounds.left + (placement.c * stepWidth);
+        const snappedPixelY = gridBounds.top + (placement.r * stepWidth);
+        
+        // Update the transform so the dragged element snaps to the grid
+        this.dragTransform.set(`translate(${snappedPixelX}px, ${snappedPixelY - this.VISUAL_LIFT}px)`);
+
+    } else {
+        // The shape is off the board
+        // A. Clear any previews
+        this.game.clearPreview();
+        this.isPlacementValid.set(false);
+        this.lastValidAnchor = null;
+
+        // B. The dragged element follows the cursor smoothly
+        const offset = this.dragStartOffset();
+        const visualX = x - offset.x;
+        const visualY = y - offset.y;
+        this.dragTransform.set(`translate(${visualX}px, ${visualY - this.VISUAL_LIFT}px)`);
     }
   }
 
@@ -161,60 +203,54 @@ export class AppComponent {
     this.lastValidAnchor = null;
     this.isPlacementValid.set(true);
   }
+  
+  private getSnappedPlacement(x: number, y: number): { r: number, c: number } | null {
+    const board = this.boardComp();
+    if (!board) return null;
+    const bounds = board.getGridBounds();
+    if (!bounds) return null;
 
-  // Calculate grid intersection and update state
-  private checkGridIntersection(x: number, y: number, isBomb: boolean) {
+    // Pointer must be over the board to snap
+    if (x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom) {
+        return null;
+    }
+
+    const size = this.game.gridSize();
+    const shape = this.game.draggedShape();
+    if (!shape) return null;
+
+    // Calculate grid cell under logical pointer
+    const col = Math.floor(((x - bounds.left) / bounds.width) * size);
+    const row = Math.floor(((y - bounds.top) / bounds.height) * size);
+
+    // Center the shape's logic on the cursor's grid cell
+    const rOffset = Math.floor(shape.matrix.length / 2);
+    const cOffset = Math.floor(shape.matrix[0].length / 2);
+    const targetR = row - rOffset;
+    const targetC = col - cOffset;
+
+    return { r: targetR, c: targetC };
+  }
+
+  private updateBombHover(x: number, y: number) {
     const board = this.boardComp();
     if (!board) return;
-    const bounds = board.getBounds();
+    const bounds = board.getGridBounds();
     if (!bounds) return;
 
-    // Expand bounds check slightly to allow "edge" placement leniency
-    const HIT_PADDING = 40; 
-    if (x >= bounds.left - HIT_PADDING && 
-        x <= bounds.right + HIT_PADDING && 
-        y >= bounds.top - HIT_PADDING && 
-        y <= bounds.bottom + HIT_PADDING) {
-          
-      const size = this.game.gridSize();
-      const col = Math.floor(((x - bounds.left) / bounds.width) * size);
-      const row = Math.floor(((y - bounds.top) / bounds.height) * size);
+    if (x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom) {
+        const size = this.game.gridSize();
+        const col = Math.floor(((x - bounds.left) / bounds.width) * size);
+        const row = Math.floor(((y - bounds.top) / bounds.height) * size);
 
-      // Note: Row/Col can be -1 or size due to padding. logic must handle it.
-
-      if (isBomb) {
         if (row >= 0 && row < size && col >= 0 && col < size) {
-          this.bombHoverPos.set({r: row, c: col});
+            this.bombHoverPos.set({r: row, c: col});
         } else {
-          this.bombHoverPos.set(null);
+            this.bombHoverPos.set(null);
         }
-      } else {
-         const shape = this.game.draggedShape()!;
-         // Center the shape's logic on finger
-         const rOffset = Math.floor(shape.matrix.length / 2);
-         const cOffset = Math.floor(shape.matrix[0].length / 2);
-         const targetR = row - rOffset;
-         const targetC = col - cOffset;
-
-         // Check if this specific anchor is valid in game logic
-         if (this.game.canPlace(shape.matrix, targetR, targetC)) {
-           this.game.updatePreview(shape, targetR, targetC);
-           this.lastValidAnchor = {r: targetR, c: targetC};
-           this.isPlacementValid.set(true);
-         } else {
-           this.game.updateInvalidPreview(shape, targetR, targetC);
-           this.lastValidAnchor = null;
-           this.isPlacementValid.set(false);
-         }
-      }
-      return;
+    } else {
+        this.bombHoverPos.set(null);
     }
-    
-    // Pointer is off the board
-    this.game.clearPreview();
-    this.isPlacementValid.set(false);
-    if (isBomb) this.bombHoverPos.set(null);
-    else this.lastValidAnchor = null;
   }
 
   // Fullscreen toggle

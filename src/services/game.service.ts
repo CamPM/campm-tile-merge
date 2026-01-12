@@ -16,7 +16,7 @@ export interface Shape {
 
 export interface ColorTheme {
   id: string;
-  name: string;
+  name:string;
   colors: string[];
   bgStyle: string;
   isDark: boolean;
@@ -44,6 +44,14 @@ export interface SoundPack {
 }
 
 export type GridSize = 6 | 8 | 10 | 12;
+
+interface BoardState {
+  density: number;
+  combo: number;
+  lineGaps: { rows: Map<number, number>, cols: Map<number, number> };
+  totalEmpty: number;
+  emptyCells: {r: number, c: number}[];
+}
 
 @Injectable({
   providedIn: 'root'
@@ -198,48 +206,181 @@ export class GameService {
     this.refillShapes();
   }
 
-  // --- Advanced Shape Generation ---
-  
-  private POOL_RESCUE = [[[1]], [[1, 1]], [[1], [1]], [[1, 1], [1, 0]], [[0, 1], [1, 1]]];
-  private POOL_STANDARD = [[[1, 1, 1]], [[1], [1], [1]], [[1, 1], [1, 1]], [[1, 1, 1], [0, 1, 0]], [[0, 1, 0], [1, 1, 1]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[1, 1], [1, 0]], [[1, 1], [0, 1]], [[1, 1, 1], [1, 0, 0]], [[1, 1, 1], [0, 0, 1]], [[1, 1, 0], [0, 1, 1]], [[0, 1, 1], [1, 1, 0]]];
-  private POOL_LARGE = [[[1, 1, 1, 1]], [[1], [1], [1], [1]], [[1, 1, 1], [1, 0, 0], [1, 0, 0]], [[1, 1, 1], [0, 0, 1], [0, 0, 1]], [[1, 1, 1], [1, 0, 1]], [[1, 0, 1], [1, 1, 1]], [[0, 1, 0], [1, 1, 1], [0, 1, 0]], [[1, 0, 0], [0, 1, 0], [0, 0, 1]], [[0, 0, 1], [0, 1, 0], [1, 0, 0]], [[1, 1, 1], [1, 1, 1]]];
+  // --- "Generous-Fit" Shape Generation ---
+  private POOL_TINY_FILLERS = [[[1]]];
+  private POOL_SMALL_FILLERS = [[[1, 1]], [[1], [1]]];
+  private POOL_LINEAR_3 = [[[1,1,1]], [[1],[1],[1]]];
+  private POOL_MULTI_LINE = [[[1, 1, 1], [0, 1, 0]], [[0, 1, 0], [1, 1, 1]], [[1, 1, 1], [1, 0, 0]], [[1, 1, 1], [0, 0, 1]], [[1, 1], [1, 0]], [[1, 1], [0, 1]]];
+  private POOL_LARGE_BLOCKS = [[[1, 1], [1, 1]], [[1, 1, 1], [1, 1, 1]], [[1,1,1],[1,1,1],[1,1,1]]];
+  private POOL_AWKWARD = [[[1, 1, 0], [0, 1, 1]], [[0, 1, 1], [1, 1, 0]]];
+  private POOL_STANDARD = [...this.POOL_SMALL_FILLERS, ...this.POOL_LINEAR_3, ...this.POOL_MULTI_LINE, ...this.POOL_LARGE_BLOCKS, ...this.POOL_AWKWARD];
 
   private getShapeArea = (matrix: number[][]): number => matrix.reduce((s, r) => s + r.reduce((c, v) => c + v, 0), 0);
-  private getBoardDensity = (): number => this.board().reduce((s, r) => s + r.filter(c => c.filled).length, 0) / (this.gridSize() * this.gridSize());
 
   refillShapes() {
     const theme = this.currentTheme();
-    const size = this.gridSize();
-    const density = this.getBoardDensity();
-    const isRecoveryMode = density > 0.70;
-    const maxRetries = 10;
+    const matrices = this.generateShapeSet();
+    let candidates = matrices.map(m => this.createShape(m, theme));
+
+    // Multi-Grid Validation: Check if all 3 pieces can be placed.
+    if (!this.areAllShapesPlaceable(candidates, this.board())) {
+        // If not, re-roll the largest piece into a 1x1.
+        let largestShapeIndex = -1;
+        let maxArea = 0;
+        candidates.forEach((shape, index) => {
+            if (shape.area > maxArea) {
+                maxArea = shape.area;
+                largestShapeIndex = index;
+            }
+        });
+        
+        if (largestShapeIndex !== -1) {
+            candidates[largestShapeIndex] = this.createShape([[1]], theme);
+        }
+    }
+
+    // Final failsafe to prevent game over from a bad roll.
+    if(this.countPlaceable(candidates, this.board()) === 0) {
+        candidates[0] = this.createShape([[1]], theme);
+    }
     
-    let bestBatch: Shape[] = [];
+    this.availableShapes.set(candidates);
+  }
 
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const candidates: Shape[] = [];
-      const mat1 = this.pickMatrixSGR(isRecoveryMode, size);
-      const mat2 = this.pickMatrixSGR(isRecoveryMode, size);
-      const backfillLimit = Math.max(1, Math.floor(this.getLargestContiguousEmpty() * 0.6));
-      const mat3 = this.pickBackfillMatrix(backfillLimit);
-      
-      candidates.push(this.createShape(mat1, theme));
-      candidates.push(this.createShape(mat2, theme));
-      candidates.push(this.createShape(mat3, theme));
+  private generateShapeSet(): number[][][] {
+    const state = this.analyzeBoard();
+    const matrices: number[][][] = [];
 
-      if (this.countPlaceable(candidates, this.board()) > 0) {
-        bestBatch = candidates;
-        break; // Found a solvable batch
-      }
-      
-      if (attempt === 0) bestBatch = candidates; // Save first attempt as fallback
+    // "Solver" Logic: Always guarantee one "Key" piece.
+    const keyPiece = this.findKeyPiece(state, 2); // Find gaps of 1 or 2
+    if (keyPiece) {
+        matrices.push(keyPiece);
     }
 
-    if (bestBatch.length === 0 || this.countPlaceable(bestBatch, this.board()) === 0) {
-       bestBatch[0] = this.createShape(this.getRandomFrom(this.POOL_RESCUE), theme);
+    // The 55% "Safety Net" Logic
+    if (state.density >= 0.55) {
+        // --- Phase 2: "The Rescue" (>= 55% Full) ---
+        const survivalPool = [
+            ...this.POOL_TINY_FILLERS,
+            ...this.POOL_SMALL_FILLERS,
+            ...this.POOL_LINEAR_3
+        ];
+        // Ensure 2 out of 3 pieces are small/linear
+        while (matrices.length < 2) {
+            matrices.push(this.getRandomFrom(survivalPool));
+        }
+        // The third piece can be from a slightly wider pool for variety
+        if (matrices.length < 3) {
+            matrices.push(this.getRandomFrom([...survivalPool, ...this.POOL_MULTI_LINE]));
+        }
+
+    } else {
+        // --- Phase 1: "Expansion" (< 55% Full) ---
+        const buildPool = [
+            ...this.POOL_MULTI_LINE,      // L-blocks
+            [[1, 1], [1, 1]],            // 2x2
+            ...this.POOL_LINEAR_3,        // 3x1
+            ...this.POOL_LARGE_BLOCKS
+        ];
+        // Fill the rest of the hand with builder pieces
+        while (matrices.length < 3) {
+            matrices.push(this.getRandomFrom(buildPool));
+        }
+    }
+    
+    // Fallback if no key piece was found.
+    while (matrices.length < 3) {
+        matrices.push(this.getRandomFrom(this.POOL_STANDARD));
     }
 
-    this.availableShapes.set(bestBatch);
+    return matrices.slice(0, 3);
+  }
+  
+  private findKeyPiece(state: BoardState, maxGapSize: number): number[][] | null {
+    const targetGaps: number[] = [];
+    state.lineGaps.rows.forEach(gapSize => {
+      if (gapSize > 0 && gapSize <= maxGapSize) targetGaps.push(gapSize);
+    });
+    state.lineGaps.cols.forEach(gapSize => {
+      if (gapSize > 0 && gapSize <= maxGapSize) targetGaps.push(gapSize);
+    });
+
+    if (targetGaps.length === 0) return null;
+
+    // Prioritize filling the smallest available gaps
+    const smallestGap = Math.min(...targetGaps);
+
+    switch (smallestGap) {
+      case 1: return [[1]];
+      case 2: return this.getRandomFrom(this.POOL_SMALL_FILLERS);
+      default: return null;
+    }
+  }
+
+  private analyzeBoard(): BoardState {
+    const board = this.board();
+    const size = this.gridSize();
+    const emptyCells: { r: number, c: number }[] = [];
+    const lineGaps = { rows: new Map<number, number>(), cols: new Map<number, number>() };
+
+    for(let i = 0; i < size; i++) {
+        let rowEmpty = 0;
+        let colEmpty = 0;
+        for(let j = 0; j < size; j++) {
+            if (!board[i][j].filled) rowEmpty++;
+            if (!board[j][i].filled) colEmpty++;
+            if (!board[i][j].filled) emptyCells.push({r: i, c: j});
+        }
+        if (rowEmpty > 0) lineGaps.rows.set(i, rowEmpty);
+        if (colEmpty > 0) lineGaps.cols.set(i, colEmpty);
+    }
+    
+    const totalFilled = (size * size) - emptyCells.length;
+    return {
+      density: totalFilled / (size * size),
+      combo: this.comboMultiplier(),
+      lineGaps,
+      totalEmpty: emptyCells.length,
+      emptyCells
+    };
+  }
+  
+  private findWinningPiece(emptyCells: {r: number, c: number}[]): number[][] | null {
+    if (emptyCells.length === 0) return null;
+    const minR = Math.min(...emptyCells.map(c => c.r));
+    const maxR = Math.max(...emptyCells.map(c => c.r));
+    const minC = Math.min(...emptyCells.map(c => c.c));
+    const maxC = Math.max(...emptyCells.map(c => c.c));
+
+    const height = maxR - minR + 1;
+    const width = maxC - minC + 1;
+
+    if (height > 5 || width > 5) return null;
+
+    const matrix: number[][] = Array(height).fill(0).map(() => Array(width).fill(0));
+    let cellCount = 0;
+    for(const cell of emptyCells) {
+      matrix[cell.r - minR][cell.c - minC] = 1;
+      cellCount++;
+    }
+    
+    if (this.getShapeArea(matrix) === cellCount) {
+        return matrix;
+    }
+    return null;
+  }
+
+  private areAllShapesPlaceable(shapes: Shape[], board: Cell[][]): boolean {
+    return shapes.every(shape => {
+        for (let r = 0; r < this.gridSize(); r++) {
+            for (let c = 0; c < this.gridSize(); c++) {
+                if (this.canPlaceOnBoard(board, shape.matrix, r, c, this.gridSize())) {
+                    return true; // Found a spot for this shape, check next shape
+                }
+            }
+        }
+        return false; // No spot found for this shape
+    });
   }
 
   private countPlaceable(shapes: Shape[], board: Cell[][]): number {
@@ -264,55 +405,7 @@ export class GameService {
     };
   }
 
-  private pickMatrixSGR(recovery: boolean, size: GridSize): number[][] {
-    const rand = Math.random();
-    if (recovery) {
-       return rand < 0.8 ? this.getRandomFrom(this.POOL_RESCUE) : this.getRandomFrom(this.POOL_STANDARD);
-    }
-    let pRescue = 0.15, pStandard = 0.50;
-    if (size <= 6) { pRescue = 0.25; pStandard = 0.60; } 
-    else if (size >= 12) { pRescue = 0.10; pStandard = 0.40; }
-    if (rand < pRescue) return this.getRandomFrom(this.POOL_RESCUE);
-    if (rand < pRescue + pStandard) return this.getRandomFrom(this.POOL_STANDARD);
-    return this.getRandomFrom(this.POOL_LARGE);
-  }
-
-  private pickBackfillMatrix(areaLimit: number): number[][] {
-    const allShapes = [...this.POOL_RESCUE, ...this.POOL_STANDARD, ...this.POOL_LARGE];
-    const valid = allShapes.filter(m => this.getShapeArea(m) <= areaLimit);
-    return valid.length > 0 ? this.getRandomFrom(valid) : [[1]]; 
-  }
-
   private getRandomFrom = (pool: number[][][]): number[][] => pool[Math.floor(Math.random() * pool.length)];
-
-  private getLargestContiguousEmpty(): number {
-    const size = this.gridSize();
-    const board = this.board();
-    const visited = new Set<string>();
-    let maxArea = 0;
-    for (let r = 0; r < size; r++) {
-      for (let c = 0; c < size; c++) {
-        if (!board[r][c].filled && !visited.has(`${r},${c}`)) {
-          let area = 0;
-          const queue = [{r, c}];
-          visited.add(`${r},${c}`);
-          while (queue.length > 0) {
-            const curr = queue.shift()!;
-            area++;
-            [[0, 1], [0, -1], [1, 0], [-1, 0]].forEach(d => {
-              const nr = curr.r + d[0], nc = curr.c + d[1];
-              if (nr >= 0 && nr < size && nc >= 0 && nc < size && !board[nr][nc].filled && !visited.has(`${nr},${nc}`)) {
-                visited.add(`${nr},${nc}`);
-                queue.push({r: nr, c: nc});
-              }
-            });
-          }
-          if (area > maxArea) maxArea = area;
-        }
-      }
-    }
-    return maxArea;
-  }
   
   private canPlaceOnBoard(board: Cell[][], matrix: number[][], row: number, col: number, size: number): boolean {
     for (let r = 0; r < matrix.length; r++) {
@@ -431,7 +524,6 @@ export class GameService {
       this.movesSinceLastClear.update(m => m + 1);
       if (this.movesSinceLastClear() >= 3) {
         this.comboMultiplier.set(1);
-        this.movesSinceLastClear.set(0);
       }
     }
     
@@ -439,16 +531,21 @@ export class GameService {
     if (totalLines > 0) {
       this.sound.playClear(totalLines);
       linePoints = totalLines * 10 + (totalLines >= 2 ? totalLines * 10 : 0);
-
-      const totalFilled = board.flat().filter(c => c.filled).length;
-      const filledInClear = board.flat().filter((c, i) => c.filled && (rowsToClear.includes(Math.floor(i/size)) || colsToClear.includes(i%size))).length;
-      if (totalFilled > 0 && totalFilled === filledInClear) this.triggerThemeCycle();
       
       this.clearedLines.set([{indices: rowsToClear, type: 'row'}, {indices: colsToClear, type: 'col'}]);
       setTimeout(() => {
         const nextBoard = this.board().map(r => r.map(c => ({...c})));
         rowsToClear.forEach(r => { for(let c=0; c<size; c++) nextBoard[r][c] = { filled: false }; });
         colsToClear.forEach(c => { for(let r=0; r<size; r++) nextBoard[r][c] = { filled: false }; });
+        
+        // BOARD CLEAR LOGIC: Check if the board is now empty after the clear.
+        const wasNotEmpty = this.board().flat().some(cell => cell.filled);
+        const isNowEmpty = nextBoard.flat().every(cell => !cell.filled);
+
+        if (wasNotEmpty && isNowEmpty) {
+          this.triggerThemeCycle();
+        }
+
         this.board.set(nextBoard);
         this.clearedLines.set([]);
         const hand = this.availableShapes();
