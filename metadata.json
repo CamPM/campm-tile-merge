@@ -1,0 +1,6 @@
+{
+  "name": "Block Blast Pro",
+  "description": "A sophisticated, sensory-rich, zen-yet-engaging block puzzle game with tactical power-ups, procedural audio synthesis, and a cosmetic skin shop.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
