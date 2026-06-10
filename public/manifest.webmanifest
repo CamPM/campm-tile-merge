@@ -1,22 +1,22 @@
 {
   "name": "Block Blast Pro",
   "short_name": "Block Blast",
-  "description": "The sophisticated, sensory-rich, Zen block puzzle game with tactical power-ups, procedural wavetable sound, and cosmetic skin store.",
-  "start_url": "/",
+  "theme_color": "#95e2fc",
+  "background_color": "#0f172a",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f172a",
-  "theme_color": "#e11d48",
+  "scope": "/campm-tile-merge/",
+  "start_url": "/campm-tile-merge/",
   "icons": [
     {
-      "src": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=192&q=80",
+      "src": "/campm-tile-merge/icon-192.png",
       "sizes": "192x192",
-      "type": "image/jpeg"
+      "type": "image/png"
     },
     {
-      "src": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=512&q=80",
+      "src": "/campm-tile-merge/icon-512.png",
       "sizes": "512x512",
-      "type": "image/jpeg"
+      "type": "image/png"
     }
   ]
 }
