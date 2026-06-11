@@ -364,49 +364,76 @@ export default function CosmeticShop({
           )}
 
           {/* TAB CATEGORY 4: PREMIUM PRE-BUILT SOUND PACKS */}
-          {activeTab === 'audio' && (
-            <div className="space-y-2">
-              {AUDIO_PRODUCTS.map((ap) => {
-                const isUnlocked = ap.price === 0 || unlockedAudioPackIds.includes(ap.id);
-                const isEquipped = selectedAudioPackId === ap.id;
-                const dynamicPrice = getBalancedPrice(ap.price);
-                const canAfford = currency >= dynamicPrice;
+{activeTab === 'audio' && (
+  <div className="space-y-2">
+    {AUDIO_PRODUCTS.map((ap) => {
+      const isUnlocked = ap.price === 0 || unlockedAudioPackIds.includes(ap.id);
+      const isEquipped = selectedAudioPackId === ap.id;
+      const dynamicPrice = getBalancedPrice(ap.price);
+      const canAfford = currency >= dynamicPrice;
 
-                return (
-                  <div key={ap.id} className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
-                    isEquipped ? 'bg-neutral-850/40 border-[#95e2fc]/40' : 'bg-neutral-950/30 border-neutral-850'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => {
-                          // Audits preview notes using targeting profile mechanisms
-                          audioService.playCombo(1, ap.type);
-                        }}
-                        className="w-10 h-10 bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-[#95e2fc] hover:border-[#95e2fc]/30 rounded-lg flex items-center justify-center transition-all cursor-pointer group active:scale-95"
-                        title="Preview audio chime"
-                      >
-                        <Play className="w-4 h-4 fill-current opacity-70 group-hover:opacity-100" />
-                      </button>
-                      <div>
-                        <div className="flex items-center gap-1">
-                          <h3 className="text-xs font-bold text-neutral-200 font-display">{ap.name}</h3>
-                          <Volume2 className="w-3 h-3 text-neutral-500" />
-                        </div>
-                        <p className="text-[10px] text-neutral-400 font-body">{ap.description}</p>
-                      </div>
-                    </div>
+      return (
+        <div key={ap.id} className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+          isEquipped ? 'bg-neutral-850/40 border-[#95e2fc]/40' : 'bg-neutral-950/30 border-neutral-850'
+        }`}>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                // Audits preview notes using targeting profile mechanisms
+                audioService.playCombo(1, ap.type);
+              }}
+              className="w-10 h-10 bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-[#95e2fc] hover:border-[#95e2fc]/30 rounded-lg flex items-center justify-center transition-all cursor-pointer group active:scale-95"
+              title="Preview audio chime"
+            >
+              <Play className="w-4 h-4 fill-current opacity-70 group-hover:opacity-100" />
+            </button>
+            <div>
+              <div className="flex items-center gap-1">
+                <h3 className="text-xs font-bold text-neutral-200 font-display">{ap.name}</h3>
+                <Volume2 className="w-3 h-3 text-neutral-500" />
+              </div>
+              <p className="text-[10px] text-neutral-400 font-body">{ap.description}</p>
+            </div>
+          </div>
 
-                    <div>
-                      {isUnlocked ? (
-                        isEquipped ? (
-                          <span className="px-2.5 py-1.5 bg-neutral-800 text-neutral-400 text-[10px] font-black rounded-lg flex items-center gap-1">
-                            <Check className="w-3 h-3 text-[#95e2fc]" /> Equipped
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              audioService.playClick();
-                              onSelectAudioPack(ap.id);
-                            }}
-                            className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 text-xs font-bold rounded-lg transition-transform hover:scale-105"
-              
+          <div>
+            {isUnlocked ? (
+              isEquipped ? (
+                <span className="px-2.5 py-1.5 bg-neutral-800 text-neutral-400 text-[10px] font-black rounded-lg flex items-center gap-1">
+                  <Check className="w-3 h-3 text-[#95e2fc]" /> Equipped
+                </span>
+              ) : (
+                <button
+                  onClick={() => {
+                    audioService.playClick();
+                    onSelectAudioPack(ap.id);
+                  }}
+                  className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 text-xs font-bold rounded-lg transition-transform hover:scale-105"
+                >
+                  Equip
+                </button>
+              )
+            ) : (
+              <button
+                disabled={!canAfford}
+                onClick={() => {
+                  audioService.playClick();
+                  onPurchaseAudioPack(ap.id, dynamicPrice);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all ${
+                  canAfford
+                    ? 'bg-[#95e2fc] hover:bg-[#95e2fc]/90 text-neutral-950 hover:scale-[1.02]'
+                    : 'bg-neutral-800 border border-neutral-750 text-neutral-500 cursor-not-allowed'
+                }`}
+              >
+                <Lock className="w-3 h-3" />
+                <span className="font-mono">{dynamicPrice}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+)}
+          
