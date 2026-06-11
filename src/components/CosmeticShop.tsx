@@ -39,63 +39,48 @@ interface CosmeticShopProps {
   onPurchaseAudioPack: (audioPackId: string, price: number) => void;
 }
 
-// Fixed lists for static products
+// Fixed lists for static skin products
 export interface SkinProduct {
   id: string;
   name: string;
-  price: number;
   description: string;
-  color: string;
+  price: number;
 }
 
-export const SKIN_PRODUCTS: SkinProduct[] = [
-  { id: 'classic', name: 'Classic Slate', price: 0, description: 'Sleek bevel margins with soft surface glare highlights.', color: '#3b82f6' },
-  { id: 'timber', name: 'Warm Timber', price: 100, description: 'Wood rings with concentric layers and dark core.', color: '#d97706' },
-  { id: 'neko', name: 'Neko Pack', price: 150, description: 'Mimic adorable kitty paws and stylized whiskers overlays.', color: '#ff9494' },
-  { id: 'bricks', name: 'Toy Bricks', price: 200, description: 'Raised studs and physical plastic tactile style.', color: '#ef4444' },
-  { id: 'iron', name: 'Iron Fortress', price: 250, description: 'Brushed steel sheets featuring corner backing rivets.', color: '#64748b' },
-  { id: 'tetris', name: 'Tetris Classic', price: 300, description: 'Glossy double-beveled traditional arcade style block.', color: '#a855f7' },
-  { id: 'neon', name: 'Cosmic Neon', price: 200, description: 'Deep dark core center with fluorescent outer glow border.', color: '#10b981' },
-  { id: 'obsidian', name: 'Dark Obsidian', price: 250, description: 'Sleek dark charcoal with razor fine carbon textures.', color: '#f59e0b' }
+const SKIN_PRODUCTS: SkinProduct[] = [
+  { id: 'classic', name: 'Classic Gloss', description: 'Default sharp bevel tiles', price: 0 },
+  { id: 'neko', name: 'Neko Kingdom', description: 'Cute cat ears and little toe paws', price: 60 },
+  { id: 'timber', name: 'Warm Timber', description: 'Concentric rustic wooden log textures', price: 100 },
+  { id: 'fortress', name: 'Iron Fortress', description: 'Industrial riveted armor cladding plates', price: 120 }
 ];
 
+// Fixed lists for static sound pack products
 export interface AudioProduct {
   id: string;
   name: string;
-  price: number;
   description: string;
-  demoProfile: SoundProfileType;
+  price: number;
+  type: SoundProfileType;
 }
 
-export const AUDIO_PRODUCTS: AudioProduct[] = [
-  { id: 'classic', name: 'Classic Synthesizer', price: 0, description: 'Sweet pure sine chime bells and mellow triangular thuds.', demoProfile: 'classic' },
-  { id: 'wood', name: 'Wooden Blocks', price: 80, description: 'Warm organic triangle frequencies and physical wooden claps.', demoProfile: 'wood' },
-  { id: 'neko', name: 'Neko Paw Sounds', price: 100, description: 'Cheerful cat meows and sweet vibrating purrs.', demoProfile: 'neko' },
-  { id: 'retro', name: 'Retro Arcade', price: 120, description: 'Glorious vintage square waves with fast arpeggiator slides.', demoProfile: 'retro' },
-  { id: 'water', name: 'Water Droplets', price: 120, description: 'Gentle bandpass filtered white noise bubble ripples.', demoProfile: 'water' },
-  { id: 'cyber', name: 'Cyber Synth', price: 150, description: 'Modern resonant sweeping sawtooth synth plucks.', demoProfile: 'cyber' },
-  { id: 'ambient', name: 'Ambient Breeze', price: 150, description: 'Slow-attack smooth sub-octaves and deep atmospheric decay pads.', demoProfile: 'ambient' },
-  { id: 'forest', name: 'Forest Nature', price: 180, description: 'Lively bird-like chirps and hollow wooden windchimes.', demoProfile: 'forest' }
+const AUDIO_PRODUCTS: AudioProduct[] = [
+  { id: 'classic', name: 'Classic Synthesizer', description: 'Default melodic retro digital bells', price: 0, type: 'classic' },
+  { id: 'ambient', name: 'Ambient Breeze', description: 'Calm sweeping lowpass filter winds', price: 50, type: 'ambient' },
+  { id: 'wood', name: 'Wooden Blocks', description: 'Organic hollow percussion block snaps', price: 80, type: 'wood' },
+  { id: 'water', name: 'Water Droplets', description: 'Liquid high-frequency pitch-sweeping pops', price: 90, type: 'water' }
 ];
 
-export interface SizeProduct {
-  size: number;
-  name: string;
-  price: number;
-  description: string;
+// Economy Helper: Multiplies base database prices by 5x and rounds to nearest 50 coins
+function getBalancedPrice(basePrice: number): number {
+  if (basePrice === 0) return 0;
+  const scaled = basePrice * 5;
+  return Math.round(scaled / 50) * 50;
 }
-
-export const SIZE_PRODUCTS: SizeProduct[] = [
-  { size: 6, name: '6x6 Micro Grid', price: 200, description: 'Ultra fast matches. Gates giant shapes! High tension.' },
-  { size: 8, name: '8x8 Classic Arena', price: 0, description: 'The traditional game size. Balanced safety and difficulty.' },
-  { size: 10, name: '10x10 Master Matrix', price: 300, description: 'Allows larger 1x5 shapes. Modest threat piece spawn.' },
-  { size: 12, name: '12x12 Infinite Board', price: 400, description: 'Huge board with plenty of space for massive combos.' }
-];
 
 export default function CosmeticShop({
   currency,
   onClose,
-  initialTab = 'themes',
+  initialTab = 'sizes',
   unlockedSizes,
   onPurchaseSize,
   boardSize,
@@ -113,143 +98,111 @@ export default function CosmeticShop({
   onSelectAudioPack,
   onPurchaseAudioPack
 }: CosmeticShopProps) {
-  
   const [activeTab, setActiveTab] = useState<'sizes' | 'themes' | 'skins' | 'audio'>(initialTab);
 
-  // Play audio pack test chord for great player interaction
-  const handleTestAudio = (e: React.MouseEvent, profile: SoundProfileType) => {
-    e.stopPropagation();
-    // Re-verify sound doesn't get blocked by master volume, just play a clean arpeggio
-    audioService.playClear(2, profile);
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-3 xs:p-4 animate-fade-in select-none">
-      <div 
-        id="cosmetic-shop-panel" 
-        className="relative w-full max-w-xl bg-[var(--theme-bg-solid)] border border-[var(--theme-border)] rounded-2xl shadow-2xl p-4 sm:p-5 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[85vh] transition-all"
-        style={{ touchAction: 'auto' }}
-      >
-        {/* Glow ambient backdrops */}
-        <div className="absolute -top-12 -right-12 w-32 h-32 bg-[var(--theme-primary)] opacity-5 rounded-full blur-2xl"></div>
-        <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-[var(--theme-primary)] opacity-5 rounded-full blur-2xl"></div>
-
-        {/* TOP STATUS BAR: Wallet and Close control */}
-        <div className="flex items-center justify-between border-b border-[var(--theme-border)] pb-3 mb-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/80 backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl p-5 flex flex-col max-h-[85vh] transform scale-100 transition-all">
+        
+        {/* HEADER BLOCK */}
+        <div className="flex items-center justify-between pb-3 border-b border-neutral-850">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-[var(--theme-bg-panel)] rounded-lg text-accent-blue border border-[var(--theme-border)]">
-              <Sparkles className="w-5 h-5 text-accent-blue" />
+            <div className="p-2.5 bg-[#95e2fc]/10 rounded-xl">
+              <Sparkles className="w-5 h-5 text-[#95e2fc]" />
             </div>
             <div>
-              <h2 className="font-display font-bold text-lg text-neutral-100 tracking-tight leading-none">Cosmetics Marketplace</h2>
-              <p className="text-[10px] text-neutral-405 mt-1">Unlock premium themes, board difficulty templates, visual block skins & procedural sfx packs</p>
+              <h2 className="text-xl font-bold font-display text-neutral-50 tracking-tight">Cosmetic Marketplace</h2>
+              <p className="text-[11px] text-neutral-400 font-body">Personalize your grids, blocks, and sounds</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-accent-blue/15 border border-accent-blue/30 rounded-lg">
-              <Coins className="w-4 h-4 text-sky-600 dark:text-accent-blue animate-pulse" />
-              <span className="font-mono text-xs font-bold text-sky-700 dark:text-accent-blue">{currency}</span>
-            </div>
-            <button 
+          {/* ENHANCED ACCESS/TOUCH HITBOX CLOSE BUTTON */}
+          <button
+            onClick={() => {
+              audioService.playClick();
+              onClose();
+            }}
+            className="p-3 -m-3 text-neutral-400 hover:text-neutral-200 transition-colors cursor-pointer flex items-center justify-center min-w-[44px] min-h-[44px] rounded-full hover:bg-neutral-800/50"
+            aria-label="Close Marketplace"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* ACCESS-ENHANCED WALLET HEADER ACCENT COUNTER */}
+        <div className="mt-3 p-3 bg-neutral-950 border border-neutral-850 rounded-xl flex items-center justify-between min-h-[48px]">
+          <span className="text-xs text-neutral-400 font-body">Your Account Balance</span>
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-neutral-900 border border-neutral-800 rounded-lg">
+            <Coins className="w-4 h-4 text-[#95e2fc]" />
+            <span className="text-sm font-black font-mono text-[#95e2fc]">{currency}</span>
+          </div>
+        </div>
+
+        {/* ACCESSIBILITY VIEW NAVIGATION TAB STRIP */}
+        <div className="mt-4 flex gap-1 p-1 bg-neutral-950 border border-neutral-850 rounded-xl overflow-x-auto scrollbar-none min-h-[46px]">
+          {(['sizes', 'themes', 'skins', 'audio'] as const).map((tab) => (
+            <button
+              key={tab}
               onClick={() => {
                 audioService.playClick();
-                onClose();
+                setActiveTab(tab);
               }}
-              className="text-xs font-bold bg-neutral-800 hover:bg-neutral-700 hover:text-white px-3 py-1.5 rounded-lg border border-neutral-750 transition-colors font-display"
+              className={`flex-1 text-center py-2 px-1 text-xs font-bold rounded-lg transition-all capitalize min-h-[38px] flex items-center justify-center ${
+                activeTab === tab
+                  ? 'bg-[#95e2fc] text-neutral-950 shadow-md scale-[1.02]'
+                  : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/50'
+              }`}
             >
-              Close
+              {tab === 'audio' ? 'SFX Packs' : tab}
             </button>
-          </div>
+          ))}
         </div>
 
-        {/* COMPACT VIEW TAB MATRIX */}
-        <div className="grid grid-cols-4 gap-1 p-1 bg-neutral-950 rounded-xl border border-neutral-850 mb-4 text-center font-display">
-          <button
-            onClick={() => { audioService.playClick(); setActiveTab('sizes'); }}
-            className={`py-1.5 px-0.5 rounded-lg text-[10px] sm:text-xs font-black transition-all ${activeTab === 'sizes' ? 'bg-accent-blue text-neutral-950 shadow-sm' : 'text-neutral-400 hover:text-neutral-250 hover:bg-neutral-900'}`}
-          >
-            Grids
-          </button>
-          <button
-            onClick={() => { audioService.playClick(); setActiveTab('themes'); }}
-            className={`py-1.5 px-0.5 rounded-lg text-[10px] sm:text-xs font-black transition-all ${activeTab === 'themes' ? 'bg-accent-blue text-neutral-950 shadow-sm' : 'text-neutral-400 hover:text-neutral-250 hover:bg-neutral-900'}`}
-          >
-            Themes
-          </button>
-          <button
-            onClick={() => { audioService.playClick(); setActiveTab('skins'); }}
-            className={`py-1.5 px-0.5 rounded-lg text-[10px] sm:text-xs font-black transition-all ${activeTab === 'skins' ? 'bg-accent-blue text-neutral-950 shadow-sm' : 'text-neutral-400 hover:text-neutral-250 hover:bg-neutral-900'}`}
-          >
-            Skins
-          </button>
-          <button
-            onClick={() => { audioService.playClick(); setActiveTab('audio'); }}
-            className={`py-1.5 px-0.5 rounded-lg text-[10px] sm:text-xs font-black transition-all ${activeTab === 'audio' ? 'bg-accent-blue text-neutral-950 shadow-sm' : 'text-neutral-400 hover:text-neutral-250 hover:bg-neutral-900'}`}
-          >
-            SFX Packs
-          </button>
-        </div>
-
-        {/* CENTRAL SCROLL CATALOG */}
-        <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 scrollbar-thin max-h-[55vh]">
+        {/* SCROLLABLE MARKETPLACE INVENTORY MODULE SLOTS */}
+        <div className="mt-4 flex-1 overflow-y-auto pr-1 space-y-2.5 max-h-[45vh] scrollbar-thin">
           
-          {/* TAB 1: BOARD DIFFICULTY SIZES */}
+          {/* TAB CATEGORY 1: GRID DIMENSIONS */}
           {activeTab === 'sizes' && (
             <div className="space-y-2">
-              {SIZE_PRODUCTS.map((prod) => {
-                const isUnlocked = prod.size === 8 || unlockedSizes.includes(prod.size);
-                const isSelected = prod.size === boardSize;
-                const canAfford = currency >= prod.price;
+              {[6, 8, 10, 12].map((size) => {
+                const isUnlocked = size === 8 || unlockedSizes.includes(size);
+                const isEquipped = boardSize === size;
+                // Base dimension size evaluations scaled and rounded via economy rule
+                const basePrice = size === 6 ? 30 : size === 10 ? 50 : size === 12 ? 80 : 0;
+                const dynamicPrice = getBalancedPrice(basePrice);
+                const canAfford = currency >= dynamicPrice;
 
                 return (
-                  <div
-                    key={prod.size}
-                    onClick={() => {
-                      if (isUnlocked && !isSelected) {
-                        onSelectSize(prod.size);
-                      }
-                    }}
-                    className={`p-3 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-accent-blue/15 border-accent-blue shadow-md'
-                        : isUnlocked
-                          ? 'bg-neutral-950/60 border-neutral-850 hover:bg-neutral-800/20'
-                          : 'bg-neutral-950/20 border-neutral-900/60 opacity-80'
-                    }`}
-                  >
+                  <div key={size} className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                    isEquipped ? 'bg-neutral-850/40 border-[#95e2fc]/40' : 'bg-neutral-950/30 border-neutral-850'
+                  }`}>
                     <div className="flex items-center gap-3">
-                      {/* Grid representation avatar */}
-                      <div className="w-10 h-10 rounded-lg bg-neutral-900 border border-neutral-850 flex items-center justify-center font-mono font-black text-accent-blue text-xs shadow-inner">
-                        {prod.size}x{prod.size}
+                      <div className="w-10 h-10 bg-neutral-900 rounded-lg flex items-center justify-center border border-neutral-800 text-xs font-black font-mono text-neutral-300">
+                        {size}x{size}
                       </div>
-
                       <div>
-                        <div className="flex items-center gap-1.5">
-                          <h3 className="font-sans font-bold text-neutral-200 text-sm leading-none">{prod.name}</h3>
-                          {prod.size === 8 && (
-                            <span className="px-1.5 py-0.5 bg-neutral-800 border border-neutral-750 rounded text-[8px] text-neutral-450 uppercase tracking-widest font-mono">Starter</span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-neutral-400 mt-1 max-w-[260px] sm:max-w-md">{prod.description}</p>
+                        <h3 className="text-xs font-bold text-neutral-200 font-display">{size} x {size} Clean Matrix</h3>
+                        <p className="text-[10px] text-neutral-400 font-body">
+                          {size === 8 ? 'Standard balance framework' : `Alters spatial complexity layout to ${size * size} grids`}
+                        </p>
                       </div>
                     </div>
 
-                    {/* CTA Controller */}
-                    <div className="flex-shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
+                    <div>
                       {isUnlocked ? (
-                        isSelected ? (
-                          <div className="flex items-center gap-1 px-2.5 py-1 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-xs font-bold">
-                            <Check className="w-3 h-3" />
-                            <span>Active</span>
-                          </div>
+                        isEquipped ? (
+                          <span className="px-2.5 py-1.5 bg-neutral-800 text-neutral-400 text-[10px] font-black rounded-lg flex items-center gap-1">
+                            <Check className="w-3 h-3 text-[#95e2fc]" /> Equipped
+                          </span>
                         ) : (
                           <button
                             onClick={() => {
                               audioService.playClick();
-                              onSelectSize(prod.size);
+                              onSelectSize(size);
                             }}
-                            className="px-3 py-1 bg-neutral-800 border border-neutral-700 text-neutral-300 hover:text-white hover:bg-neutral-700 rounded-lg text-xs font-bold transition-all font-display"
+                            className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 text-xs font-bold rounded-lg transition-transform hover:scale-105"
                           >
                             Equip
                           </button>
@@ -259,16 +212,16 @@ export default function CosmeticShop({
                           disabled={!canAfford}
                           onClick={() => {
                             audioService.playClick();
-                            onPurchaseSize(prod.size, prod.price);
+                            onPurchaseSize(size, dynamicPrice);
                           }}
                           className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all ${
                             canAfford
-                              ? 'bg-accent-blue hover:bg-accent-blue-dim text-neutral-950 shadow-lg hover:scale-[1.02]'
+                              ? 'bg-[#95e2fc] hover:bg-[#95e2fc]/90 text-neutral-950 hover:scale-[1.02]'
                               : 'bg-neutral-800 border border-neutral-750 text-neutral-500 cursor-not-allowed'
                           }`}
                         >
                           <Lock className="w-3 h-3" />
-                          <span className="font-mono">{prod.price}</span>
+                          <span className="font-mono">{dynamicPrice}</span>
                         </button>
                       )}
                     </div>
@@ -278,60 +231,46 @@ export default function CosmeticShop({
             </div>
           )}
 
-          {/* TAB 2: THEMES (24 TOTAL) */}
+          {/* TAB CATEGORY 2: COLOR SCHEME THEMES */}
           {activeTab === 'themes' && (
-            <div className="space-y-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {themes.map((theme) => {
-                const isSelected = theme.id === selectedThemeId;
-                const canAfford = currency >= theme.price;
+            <div className="space-y-2">
+              {themes.map((th) => {
+                const isUnlocked = th.price === 0 || th.isUnlocked;
+                const isEquipped = selectedThemeId === th.id;
+                const dynamicPrice = getBalancedPrice(th.price);
+                const canAfford = currency >= dynamicPrice;
 
                 return (
-                  <div
-                    key={theme.id}
-                    onClick={() => {
-                      if (theme.unlocked && !isSelected) {
-                        onSelectTheme(theme.id);
-                      }
-                    }}
-                    className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-accent-blue/15 border-accent-blue shadow-md'
-                        : theme.unlocked
-                          ? 'bg-neutral-950/60 border-neutral-850 hover:bg-neutral-805/30'
-                          : 'bg-neutral-950/20 border-neutral-900/60 opacity-80'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      {/* Round theme preview */}
-                      <div className={`w-9 h-9 rounded-lg ${theme.bgClass} border border-white/5 flex items-center justify-center shadow-inner relative overflow-hidden flex-shrink-0`}>
-                        <div className="w-5 h-5 rounded" style={{ backgroundColor: theme.primaryColor, boxShadow: `0 0 6px ${theme.primaryColor}` }} />
+                  <div key={th.id} className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                    isEquipped ? 'bg-neutral-850/40 border-[#95e2fc]/40' : 'bg-neutral-950/30 border-neutral-850'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      {/* Grid Mini-Preview Swatches */}
+                      <div className="grid grid-cols-2 gap-0.5 p-1 w-10 h-10 bg-neutral-900 border border-neutral-800 rounded-lg overflow-hidden">
+                        <div className="rounded-sm" style={{ backgroundColor: th.colors?.primary || '#3b82f6' }} />
+                        <div className="rounded-sm" style={{ backgroundColor: th.colors?.accent || '#f43f5e' }} />
+                        <div className="rounded-sm" style={{ backgroundColor: th.colors?.secondary || '#10b981' }} />
+                        <div className="rounded-sm" style={{ backgroundColor: th.colors?.muted || '#eab308' }} />
                       </div>
-
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1">
-                          <h3 className="font-sans font-bold text-neutral-200 text-xs truncate max-w-[100px] leading-tight">{theme.name}</h3>
-                          {theme.price === 0 && (
-                            <span className="text-[7px] font-mono text-accent-blue border border-accent-blue/30 px-1 py-0.2 rounded uppercase leading-none bg-accent-blue/10">Free</span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-neutral-450 mt-0.5 truncate max-w-[140px] leading-none">{theme.description}</p>
+                      <div>
+                        <h3 className="text-xs font-bold text-neutral-200 font-display">{th.name}</h3>
+                        <p className="text-[10px] text-neutral-400 font-body">Alters color highlights & interface palettes</p>
                       </div>
                     </div>
 
-                    {/* Control column */}
-                    <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                      {theme.unlocked ? (
-                        isSelected ? (
-                          <div className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 rounded text-green-400 text-[10px] font-bold">
-                            Active
-                          </div>
+                    <div>
+                      {isUnlocked ? (
+                        isEquipped ? (
+                          <span className="px-2.5 py-1.5 bg-neutral-800 text-neutral-400 text-[10px] font-black rounded-lg flex items-center gap-1">
+                            <Check className="w-3 h-3 text-[#95e2fc]" /> Equipped
+                          </span>
                         ) : (
                           <button
                             onClick={() => {
                               audioService.playClick();
-                              onSelectTheme(theme.id);
+                              onSelectTheme(th.id);
                             }}
-                            className="px-2.5 py-0.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded text-[10px] font-bold transition-all font-display"
+                            className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 text-xs font-bold rounded-lg transition-transform hover:scale-105"
                           >
                             Equip
                           </button>
@@ -341,16 +280,16 @@ export default function CosmeticShop({
                           disabled={!canAfford}
                           onClick={() => {
                             audioService.playClick();
-                            onPurchaseTheme(theme.id, theme.price);
+                            onPurchaseTheme(th.id, dynamicPrice);
                           }}
-                          className={`px-2.5 py-1 rounded text-[10px] font-black flex items-center gap-1.5 transition-all ${
+                          className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all ${
                             canAfford
-                              ? 'bg-accent-blue hover:bg-accent-blue-dim text-neutral-950 font-bold hover:scale-[1.02]'
+                              ? 'bg-[#95e2fc] hover:bg-[#95e2fc]/90 text-neutral-950 hover:scale-[1.02]'
                               : 'bg-neutral-800 border border-neutral-750 text-neutral-500 cursor-not-allowed'
                           }`}
                         >
-                          <Lock className="w-2.5 h-2.5" />
-                          <span className="font-mono">{theme.price}</span>
+                          <Lock className="w-3 h-3" />
+                          <span className="font-mono">{dynamicPrice}</span>
                         </button>
                       )}
                     </div>
@@ -360,64 +299,42 @@ export default function CosmeticShop({
             </div>
           )}
 
-          {/* TAB 3: SKINS (CELL OVERRIDES) */}
+          {/* TAB CATEGORY 3: BLOCK TEXTURE GEOMETRIC SKINS */}
           {activeTab === 'skins' && (
             <div className="space-y-2">
-              {SKIN_PRODUCTS.map((skin) => {
-                const isUnlocked = unlockedSkinIds.includes(skin.id);
-                const isSelected = skin.id === selectedSkinId;
-                const canAfford = currency >= skin.price;
+              {SKIN_PRODUCTS.map((sk) => {
+                const isUnlocked = sk.price === 0 || unlockedSkinIds.includes(sk.id);
+                const isEquipped = selectedSkinId === sk.id;
+                const dynamicPrice = getBalancedPrice(sk.price);
+                const canAfford = currency >= dynamicPrice;
 
                 return (
-                  <div
-                    key={skin.id}
-                    onClick={() => {
-                      if (isUnlocked && !isSelected) {
-                        onSelectSkin(skin.id);
-                      }
-                    }}
-                    className={`p-3 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-accent-blue/15 border-accent-blue shadow-md'
-                        : isUnlocked
-                          ? 'bg-neutral-950/60 border-neutral-850 hover:bg-neutral-800/20'
-                          : 'bg-neutral-950/20 border-neutral-900/60 opacity-80'
-                    }`}
-                  >
+                  <div key={sk.id} className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                    isEquipped ? 'bg-neutral-850/40 border-[#95e2fc]/40' : 'bg-neutral-950/30 border-neutral-850'
+                  }`}>
                     <div className="flex items-center gap-3">
-                      {/* Exact CellBlock preview of active Skin style */}
-                      <div className="w-11 h-11 bg-neutral-900 p-1 rounded-xl border border-neutral-850 flex items-center justify-center shadow-inner flex-shrink-0">
-                        <div className="w-8 h-8">
-                           <CellBlock filled={true} color={skin.color} styleId={skin.id} />
-                        </div>
+                      <div className="w-10 h-10 bg-neutral-900 border border-neutral-800 rounded-lg flex items-center justify-center p-1.5">
+                        <CellBlock type={1} skinOverride={sk.id} isSamplePreview={true} />
                       </div>
-
                       <div>
-                        <div className="flex items-center gap-1.5">
-                          <h3 className="font-sans font-bold text-neutral-200 text-sm leading-none">{skin.name}</h3>
-                          {skin.price === 0 && (
-                            <span className="px-1.5 py-0.5 bg-neutral-800 border border-neutral-750 rounded text-[8px] text-neutral-450 uppercase tracking-widest font-mono">Starter</span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-neutral-400 mt-1 max-w-[240px] sm:max-w-md">{skin.description}</p>
+                        <h3 className="text-xs font-bold text-neutral-200 font-display">{sk.name}</h3>
+                        <p className="text-[10px] text-neutral-400 font-body">{sk.description}</p>
                       </div>
                     </div>
 
-                    {/* CTA Button */}
-                    <div className="flex-shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
+                    <div>
                       {isUnlocked ? (
-                        isSelected ? (
-                          <div className="flex items-center gap-1 px-2.5 py-1 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-xs font-bold">
-                            <Check className="w-3 h-3" />
-                            <span>Active</span>
-                          </div>
+                        isEquipped ? (
+                          <span className="px-2.5 py-1.5 bg-neutral-800 text-neutral-400 text-[10px] font-black rounded-lg flex items-center gap-1">
+                            <Check className="w-3 h-3 text-[#95e2fc]" /> Equipped
+                          </span>
                         ) : (
                           <button
                             onClick={() => {
                               audioService.playClick();
-                              onSelectSkin(skin.id);
+                              onSelectSkin(sk.id);
                             }}
-                            className="px-3 py-1 bg-neutral-800 border border-neutral-700 text-neutral-300 hover:text-white hover:bg-neutral-700 rounded-lg text-xs font-bold transition-all font-display"
+                            className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 text-xs font-bold rounded-lg transition-transform hover:scale-105"
                           >
                             Equip
                           </button>
@@ -427,16 +344,16 @@ export default function CosmeticShop({
                           disabled={!canAfford}
                           onClick={() => {
                             audioService.playClick();
-                            onPurchaseSkin(skin.id, skin.price);
+                            onPurchaseSkin(sk.id, dynamicPrice);
                           }}
                           className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all ${
                             canAfford
-                              ? 'bg-accent-blue hover:bg-accent-blue-dim text-neutral-950 hover:scale-[1.02]'
+                              ? 'bg-[#95e2fc] hover:bg-[#95e2fc]/90 text-neutral-950 hover:scale-[1.02]'
                               : 'bg-neutral-800 border border-neutral-750 text-neutral-500 cursor-not-allowed'
                           }`}
                         >
                           <Lock className="w-3 h-3" />
-                          <span className="font-mono">{skin.price}</span>
+                          <span className="font-mono">{dynamicPrice}</span>
                         </button>
                       )}
                     </div>
@@ -446,102 +363,50 @@ export default function CosmeticShop({
             </div>
           )}
 
-          {/* TAB 4: AUDIO SYNTHESIZER PACKS */}
+          {/* TAB CATEGORY 4: PREMIUM PRE-BUILT SOUND PACKS */}
           {activeTab === 'audio' && (
             <div className="space-y-2">
               {AUDIO_PRODUCTS.map((ap) => {
-                const isUnlocked = unlockedAudioPackIds.includes(ap.id);
-                const isSelected = ap.id === selectedAudioPackId;
-                const canAfford = currency >= ap.price;
+                const isUnlocked = ap.price === 0 || unlockedAudioPackIds.includes(ap.id);
+                const isEquipped = selectedAudioPackId === ap.id;
+                const dynamicPrice = getBalancedPrice(ap.price);
+                const canAfford = currency >= dynamicPrice;
 
                 return (
-                  <div
-                    key={ap.id}
-                    onClick={() => {
-                      if (isUnlocked && !isSelected) {
-                        onSelectAudioPack(ap.id);
-                      }
-                    }}
-                    className={`p-3 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-accent-blue/15 border-accent-blue shadow-md'
-                        : isUnlocked
-                          ? 'bg-neutral-950/60 border-neutral-850 hover:bg-neutral-800/20'
-                          : 'bg-neutral-950/20 border-neutral-900/60 opacity-80'
-                    }`}
-                  >
+                  <div key={ap.id} className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                    isEquipped ? 'bg-neutral-850/40 border-[#95e2fc]/40' : 'bg-neutral-950/30 border-neutral-850'
+                  }`}>
                     <div className="flex items-center gap-3">
-                      {/* Play Demo Button */}
                       <button
-                        onClick={(e) => handleTestAudio(e, ap.demoProfile)}
-                        className="w-10 h-10 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-accent-blue border border-neutral-800 flex items-center justify-center shadow-md active:scale-95 transition-all group"
-                        title="Play Test Sound"
+                        onClick={() => {
+                          // Audits preview notes using targeting profile mechanisms
+                          audioService.playCombo(1, ap.type);
+                        }}
+                        className="w-10 h-10 bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-[#95e2fc] hover:border-[#95e2fc]/30 rounded-lg flex items-center justify-center transition-all cursor-pointer group active:scale-95"
+                        title="Preview audio chime"
                       >
-                        <Volume2 className="w-4 h-4 text-accent-blue group-hover:scale-110" />
+                        <Play className="w-4 h-4 fill-current opacity-70 group-hover:opacity-100" />
                       </button>
-
                       <div>
-                        <div className="flex items-center gap-1.5">
-                          <h3 className="font-sans font-bold text-neutral-200 text-sm leading-none">{ap.name}</h3>
-                          {ap.price === 0 && (
-                            <span className="px-1.5 py-0.5 bg-neutral-800 border border-neutral-750 rounded text-[8px] text-neutral-450 uppercase tracking-widest font-mono">Starter</span>
-                          )}
+                        <div className="flex items-center gap-1">
+                          <h3 className="text-xs font-bold text-neutral-200 font-display">{ap.name}</h3>
+                          <Volume2 className="w-3 h-3 text-neutral-500" />
                         </div>
-                        <p className="text-[11px] text-neutral-400 mt-1 max-w-[220px] sm:max-w-md">{ap.description}</p>
+                        <p className="text-[10px] text-neutral-400 font-body">{ap.description}</p>
                       </div>
                     </div>
 
-                    {/* CTA Trigger */}
-                    <div className="flex-shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
+                    <div>
                       {isUnlocked ? (
-                        isSelected ? (
-                          <div className="flex items-center gap-1 px-2.5 py-1 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-xs font-bold">
-                            <Check className="w-3 h-3" />
-                            <span>Active</span>
-                          </div>
+                        isEquipped ? (
+                          <span className="px-2.5 py-1.5 bg-neutral-800 text-neutral-400 text-[10px] font-black rounded-lg flex items-center gap-1">
+                            <Check className="w-3 h-3 text-[#95e2fc]" /> Equipped
+                          </span>
                         ) : (
                           <button
                             onClick={() => {
                               audioService.playClick();
                               onSelectAudioPack(ap.id);
                             }}
-                            className="px-3 py-1 bg-neutral-800 border border-neutral-700 text-neutral-300 hover:text-white hover:bg-neutral-700 rounded-lg text-xs font-bold transition-all font-display"
-                          >
-                            Equip
-                          </button>
-                        )
-                      ) : (
-                        <button
-                          disabled={!canAfford}
-                          onClick={() => {
-                            audioService.playClick();
-                            onPurchaseAudioPack(ap.id, ap.price);
-                          }}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all ${
-                            canAfford
-                              ? 'bg-accent-blue hover:bg-accent-blue-dim text-neutral-950 hover:scale-[1.02]'
-                              : 'bg-neutral-800 border border-neutral-750 text-neutral-500 cursor-not-allowed'
-                          }`}
-                        >
-                          <Lock className="w-3 h-3" />
-                          <span className="font-mono">{ap.price}</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-        </div>
-
-        {/* BOTTOM METRIC: Wallet Affordability Guidance */}
-        <div className="mt-4 pt-3 border-t border-neutral-850 flex items-center justify-between text-[10px] text-neutral-450">
-          <span>Achieve streaks and clear grid columns to earn precious gold coins!</span>
-          <span className="font-mono">Catalog: 4 Modules</span>
-        </div>
-      </div>
-    </div>
-  );
-}
+                            className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 text-xs font-bold rounded-lg transition-transform hover:scale-105"
+              
