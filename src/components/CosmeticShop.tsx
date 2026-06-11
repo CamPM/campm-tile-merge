@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Theme } from '../types';
 import audioService, { SoundProfileType } from '../services/audioService';
-import { Sparkles, Coins, Check, Lock, ChevronRight, Play, Volume2 } from 'lucide-react';
+import { Sparkles, Coins, Check, Lock, Play, Volume2 } from 'lucide-react';
 import CellBlock from './CellBlock';
 
 interface CosmeticShopProps {
@@ -149,7 +149,7 @@ export default function CosmeticShop({
                 audioService.playClick();
                 setActiveTab(tab);
               }}
-              className={`flex-1 text-center py-2 px-1 text-xs font-bold rounded-lg transition-all capitalize min-h-[38px] flex items-center justify-center ${
+              className={`flex-1 text-center py-2 px-1 text-xs font-bold rounded-lg transition-all capitalize min-h-[38px] flex items-center justify-center cursor-pointer ${
                 activeTab === tab
                   ? 'bg-[#95e2fc] text-neutral-950 shadow-md scale-[1.02]'
                   : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/50'
@@ -169,7 +169,6 @@ export default function CosmeticShop({
               {[6, 8, 10, 12].map((size) => {
                 const isUnlocked = size === 8 || unlockedSizes.includes(size);
                 const isEquipped = boardSize === size;
-                // Base dimension size evaluations scaled and rounded via economy rule
                 const basePrice = size === 6 ? 30 : size === 10 ? 50 : size === 12 ? 80 : 0;
                 const dynamicPrice = getBalancedPrice(basePrice);
                 const canAfford = currency >= dynamicPrice;
@@ -202,7 +201,7 @@ export default function CosmeticShop({
                               audioService.playClick();
                               onSelectSize(size);
                             }}
-                            className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 text-xs font-bold rounded-lg transition-transform hover:scale-105"
+                            className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 text-xs font-bold rounded-lg transition-transform hover:scale-105 cursor-pointer"
                           >
                             Equip
                           </button>
@@ -214,7 +213,7 @@ export default function CosmeticShop({
                             audioService.playClick();
                             onPurchaseSize(size, dynamicPrice);
                           }}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all ${
+                          className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all cursor-pointer ${
                             canAfford
                               ? 'bg-[#95e2fc] hover:bg-[#95e2fc]/90 text-neutral-950 hover:scale-[1.02]'
                               : 'bg-neutral-800 border border-neutral-750 text-neutral-500 cursor-not-allowed'
@@ -245,7 +244,6 @@ export default function CosmeticShop({
                     isEquipped ? 'bg-neutral-850/40 border-[#95e2fc]/40' : 'bg-neutral-950/30 border-neutral-850'
                   }`}>
                     <div className="flex items-center gap-3">
-                      {/* Grid Mini-Preview Swatches */}
                       <div className="grid grid-cols-2 gap-0.5 p-1 w-10 h-10 bg-neutral-900 border border-neutral-800 rounded-lg overflow-hidden">
                         <div className="rounded-sm" style={{ backgroundColor: th.colors?.primary || '#3b82f6' }} />
                         <div className="rounded-sm" style={{ backgroundColor: th.colors?.accent || '#f43f5e' }} />
@@ -270,7 +268,7 @@ export default function CosmeticShop({
                               audioService.playClick();
                               onSelectTheme(th.id);
                             }}
-                            className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 text-xs font-bold rounded-lg transition-transform hover:scale-105"
+                            className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 text-xs font-bold rounded-lg transition-transform hover:scale-105 cursor-pointer"
                           >
                             Equip
                           </button>
@@ -282,7 +280,7 @@ export default function CosmeticShop({
                             audioService.playClick();
                             onPurchaseTheme(th.id, dynamicPrice);
                           }}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all ${
+                          className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all cursor-pointer ${
                             canAfford
                               ? 'bg-[#95e2fc] hover:bg-[#95e2fc]/90 text-neutral-950 hover:scale-[1.02]'
                               : 'bg-neutral-800 border border-neutral-750 text-neutral-500 cursor-not-allowed'
@@ -334,7 +332,7 @@ export default function CosmeticShop({
                               audioService.playClick();
                               onSelectSkin(sk.id);
                             }}
-                            className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 text-xs font-bold rounded-lg transition-transform hover:scale-105"
+                            className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 text-xs font-bold rounded-lg transition-transform hover:scale-105 cursor-pointer"
                           >
                             Equip
                           </button>
@@ -346,7 +344,7 @@ export default function CosmeticShop({
                             audioService.playClick();
                             onPurchaseSkin(sk.id, dynamicPrice);
                           }}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all ${
+                          className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all cursor-pointer ${
                             canAfford
                               ? 'bg-[#95e2fc] hover:bg-[#95e2fc]/90 text-neutral-950 hover:scale-[1.02]'
                               : 'bg-neutral-800 border border-neutral-750 text-neutral-500 cursor-not-allowed'
@@ -363,77 +361,9 @@ export default function CosmeticShop({
             </div>
           )}
 
-          {/* TAB CATEGORY 4: PREMIUM PRE-BUILT SOUND PACKS */}
-{activeTab === 'audio' && (
-  <div className="space-y-2">
-    {AUDIO_PRODUCTS.map((ap) => {
-      const isUnlocked = ap.price === 0 || unlockedAudioPackIds.includes(ap.id);
-      const isEquipped = selectedAudioPackId === ap.id;
-      const dynamicPrice = getBalancedPrice(ap.price);
-      const canAfford = currency >= dynamicPrice;
-
-      return (
-        <div key={ap.id} className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
-          isEquipped ? 'bg-neutral-850/40 border-[#95e2fc]/40' : 'bg-neutral-950/30 border-neutral-850'
-        }`}>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                // Audits preview notes using targeting profile mechanisms
-                audioService.playCombo(1, ap.type);
-              }}
-              className="w-10 h-10 bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-[#95e2fc] hover:border-[#95e2fc]/30 rounded-lg flex items-center justify-center transition-all cursor-pointer group active:scale-95"
-              title="Preview audio chime"
-            >
-              <Play className="w-4 h-4 fill-current opacity-70 group-hover:opacity-100" />
-            </button>
-            <div>
-              <div className="flex items-center gap-1">
-                <h3 className="text-xs font-bold text-neutral-200 font-display">{ap.name}</h3>
-                <Volume2 className="w-3 h-3 text-neutral-500" />
-              </div>
-              <p className="text-[10px] text-neutral-400 font-body">{ap.description}</p>
-            </div>
-          </div>
-
-          <div>
-            {isUnlocked ? (
-              isEquipped ? (
-                <span className="px-2.5 py-1.5 bg-neutral-800 text-neutral-400 text-[10px] font-black rounded-lg flex items-center gap-1">
-                  <Check className="w-3 h-3 text-[#95e2fc]" /> Equipped
-                </span>
-              ) : (
-                <button
-                  onClick={() => {
-                    audioService.playClick();
-                    onSelectAudioPack(ap.id);
-                  }}
-                  className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 text-xs font-bold rounded-lg transition-transform hover:scale-105"
-                >
-                  Equip
-                </button>
-              )
-            ) : (
-              <button
-                disabled={!canAfford}
-                onClick={() => {
-                  audioService.playClick();
-                  onPurchaseAudioPack(ap.id, dynamicPrice);
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all ${
-                  canAfford
-                    ? 'bg-[#95e2fc] hover:bg-[#95e2fc]/90 text-neutral-950 hover:scale-[1.02]'
-                    : 'bg-neutral-800 border border-neutral-750 text-neutral-500 cursor-not-allowed'
-                }`}
-              >
-                <Lock className="w-3 h-3" />
-                <span className="font-mono">{dynamicPrice}</span>
-              </button>
-            )}
-          </div>
-        </div>
-      );
-    })}
-  </div>
-)}
-          
+          {/* TAB CATEGORY 4: SOUND EFFECTS PACKS */}
+          {activeTab === 'audio' && (
+            <div className="space-y-2">
+              {AUDIO_PRODUCTS.map((ap) => {
+                const
+                  
